@@ -1,0 +1,284 @@
+// src/midi/APCMiniMK2Manager.ts
+
+import { MIDIManager } from "./midiManager";
+
+// --- 定数定義: MIDIステータスとノートレンジ ---
+const MIDI_STATUS = {
+    NOTE_ON: 0x90,
+    NOTE_OFF: 0x80,
+    CONTROL_CHANGE: 0xB0,
+};
+
+const NOTE_RANGES = {
+    GRID: { START: 0, END: 63 },
+    FADER_BUTTONS: { START: 100, END: 107 },
+    SIDE_BUTTONS: { START: 112, END: 119 }, // シーン切り替えボタン
+    FADERS: { START: 48, END: 56 },
+    FADER_BUTTON_8: 122, // 9番目のフェーダーボタン
+};
+
+const GRID_ROWS = 8;
+const GRID_COLS = 8;
+
+// LEDのベロシティ (色) 定義
+const LED_COLOR = {
+    OFF: 0,
+    RED: 5,           // 選択可能/初期色
+    BLUE: 41,         // アクティブ/選択中
+    GREEN: 52,        // ランダムモード選択中
+    BRIGHT_WHITE: 127, // シーン選択中/トグルON
+};
+
+
+/**
+ * グリッドパッドのパラメーター状態を定義するインターフェース
+ */
+export interface GridParameterState {
+    selectedRow: number; // 現在の選択インデックス (手動選択時)
+    maxOptions: number;  // このパラメーターの有効な選択肢の数 (1-8)
+    isRandom: boolean;   // ランダムモードが有効か
+    randomValue: number; // BPM同期で更新されるランダムな値
+}
+
+/**
+ * APC Mini MK2 MIDIコントローラーの入出力と状態を管理するクラス
+ */
+export class APCMiniMK2Manager extends MIDIManager {
+
+    public faderValues: number[];
+    private faderValuesPrev: number[];
+    public faderButtonToggleState: number[];
+    public sideButtonToggleState: number[];
+
+    public currentSceneIndex: number; // 現在選択されているシーンのインデックス (0-7)
+
+    /** グリッドパッドの全状態を保持 [sceneIndex][columnIndex] */
+    public gridRadioState: GridParameterState[][];
+
+    constructor() {
+        super();
+        this.faderValues = new Array(9).fill(0);
+        this.faderValuesPrev = new Array(9).fill(1);
+        this.faderButtonToggleState = new Array(9).fill(0);
+        this.sideButtonToggleState = new Array(8).fill(0);
+        this.currentSceneIndex = 0;
+
+        // 8シーン x 8カラムの状態を初期化
+        this.gridRadioState = Array(GRID_COLS).fill(0).map(() =>
+            Array(GRID_COLS).fill(0).map(() => ({
+                selectedRow: 0,
+                maxOptions: 8,
+                isRandom: false,
+                randomValue: 0,
+            }))
+        );
+
+        this.sideButtonToggleState[this.currentSceneIndex] = 1;
+        this.onMidiMessageCallback = this.handleMIDIMessage.bind(this);
+    }
+
+    /**
+     * 現在選択中のシーンのパラメーター値を取得する。ランダムモードを自動でチェック。
+     */
+    public getParamValue(columnIndex: number): number {
+        const param = this.gridRadioState[this.currentSceneIndex][columnIndex];
+        return param.isRandom ? param.randomValue : param.selectedRow;
+    }
+
+    /**
+     * 全シーンのmaxOptionsをデフォルト値 (1) にリセットする。
+     */
+    public resetAllMaxOptions(): void {
+        const DEFAULT_MAX_OPTIONS = 1;
+
+        for (let scene = 0; scene < GRID_COLS; scene++) {
+            for (let col = 0; col < GRID_COLS; col++) {
+                this.gridRadioState[scene][col].maxOptions = DEFAULT_MAX_OPTIONS;
+                this.gridRadioState[scene][col].selectedRow = 0;
+                this.gridRadioState[scene][col].isRandom = false;
+            }
+        }
+    }
+
+    /**
+     * 特定のシーンのmaxOptionsを一括設定する。
+     */
+    public setMaxOptionsForScene(sceneIndex: number, optionsArray: number[]): void {
+        if (sceneIndex < 0 || sceneIndex >= GRID_COLS || optionsArray.length !== GRID_COLS) {
+            console.error("Invalid scene index or options array length for setMaxOptionsForScene.");
+            return;
+        }
+
+        for (let col = 0; col < GRID_COLS; col++) {
+            const max = Math.max(1, Math.min(8, optionsArray[col]));
+            this.gridRadioState[sceneIndex][col].maxOptions = max;
+
+            const param = this.gridRadioState[sceneIndex][col];
+            // 新しいmaxOptionsが現在の選択値より小さい場合、値を修正する
+            if (param.selectedRow >= max) {
+                param.selectedRow = max - 1;
+            }
+        }
+    }
+
+    /**
+     * メインループからの更新処理。ランダム値の更新とLED出力を実行する。
+     */
+    public update(tempoIndex: number = 0): void {
+        const currentScene = this.gridRadioState[this.currentSceneIndex];
+        currentScene.forEach((param, colIndex) => {
+            if (param.isRandom) {
+                // ランダム値をBPMに同期して更新
+                param.randomValue = Math.floor(this.simplePseudoRandom(tempoIndex + colIndex) * param.maxOptions);
+            }
+        });
+
+        this.midiOutputSendControls();
+    }
+
+    /**
+     * 簡易な擬似乱数生成
+     */
+    private simplePseudoRandom(seed: number): number {
+        const x = Math.sin(seed * 99999 + 1) * 10000;
+        return x - Math.floor(x);
+    }
+
+    /**
+     * MIDIメッセージ受信時の処理 (入力)
+     */
+    protected handleMIDIMessage(message: WebMidi.MIDIMessageEvent): void {
+        const [status, data1, data2] = message.data;
+        const velocity = data2;
+
+        // フェーダーボタンの処理 (トグル入力)
+        if (status === MIDI_STATUS.NOTE_ON && (
+            (data1 >= NOTE_RANGES.FADER_BUTTONS.START && data1 <= NOTE_RANGES.FADER_BUTTONS.END) ||
+            data1 === NOTE_RANGES.FADER_BUTTON_8
+        )) {
+            const index = (data1 >= NOTE_RANGES.FADER_BUTTONS.START) ? data1 - NOTE_RANGES.FADER_BUTTONS.START : 8;
+            if (velocity > 0) {
+                this.faderButtonToggleState[index] = 1 - this.faderButtonToggleState[index];
+                this.updateFaderValue(index);
+            }
+        }
+
+        // サイドボタンの処理 (シーン切り替え/ラジオボタン)
+        else if (status === MIDI_STATUS.NOTE_ON && data1 >= NOTE_RANGES.SIDE_BUTTONS.START && data1 <= NOTE_RANGES.SIDE_BUTTONS.END) {
+            const index = data1 - NOTE_RANGES.SIDE_BUTTONS.START;
+            if (velocity > 0) {
+                this.currentSceneIndex = index;
+                this.sideButtonToggleState.fill(0);
+                this.sideButtonToggleState[index] = 1;
+            }
+        }
+
+        // グリッドパッドの処理 (パラメーター選択/ラジオボタンとランダムトグル)
+        else if (status === MIDI_STATUS.NOTE_ON && data1 >= NOTE_RANGES.GRID.START && data1 <= NOTE_RANGES.GRID.END) {
+            const gridIndex = data1 - NOTE_RANGES.GRID.START;
+            const colIndex = gridIndex % GRID_COLS;
+            const rowIndex = GRID_ROWS - 1 - Math.floor(gridIndex / GRID_COLS); // 行を0-7 (下から上へ) に変換
+
+            if (velocity > 0) {
+                const param = this.gridRadioState[this.currentSceneIndex][colIndex];
+
+                if (rowIndex === 7) {
+                    // 8行目: ランダムモードのトグル
+                    param.isRandom = !param.isRandom;
+                    if (!param.isRandom) {
+                        // ランダム解除時、選択肢内の一番上に強制移動
+                        param.selectedRow = param.maxOptions > 0 ? Math.min(param.maxOptions - 1, 6) : 0;
+                    }
+                }
+                else if (rowIndex < param.maxOptions) {
+                    // 選択肢内の行: ラジオボタン入力
+                    param.selectedRow = rowIndex;
+                    param.isRandom = false; // 明示的な選択はランダムを解除
+                }
+            }
+        }
+
+        // フェーダーの処理 (CC入力)
+        else if (status === MIDI_STATUS.CONTROL_CHANGE && data1 >= NOTE_RANGES.FADERS.START && data1 <= NOTE_RANGES.FADERS.END) {
+            const index = data1 - NOTE_RANGES.FADERS.START;
+            const normalizedValue = data2 / 127;
+            this.faderValuesPrev[index] = normalizedValue;
+            this.updateFaderValue(index);
+        }
+    }
+
+    /**
+     * フェーダー値の更新。ボタンがONの場合は強制的に0にする。
+     */
+    protected updateFaderValue(index: number): void {
+        this.faderValues[index] = this.faderButtonToggleState[index] ? 0 : this.faderValuesPrev[index];
+    }
+
+    /**
+     * APC Mini MK2へのMIDI出力 (LED制御)
+     */
+    protected midiOutputSendControls(): void {
+        // 1. サイドボタンのLED制御 (選択中のシーンのみ点灯)
+        for (let i = 0; i < 8; i++) {
+            const note = NOTE_RANGES.SIDE_BUTTONS.START + i;
+            const velocity = (i === this.currentSceneIndex) ? LED_COLOR.BRIGHT_WHITE : LED_COLOR.OFF;
+            this.send(MIDI_STATUS.NOTE_ON, note, velocity);
+        }
+
+        // 2. グリッドパッドのLED制御 (パラメーター状態の視覚化)
+        const currentScene = this.gridRadioState[this.currentSceneIndex];
+
+        for (let col = 0; col < GRID_COLS; col++) {
+            const param = currentScene[col];
+            const activeRows = param.maxOptions;
+
+            for (let row = 0; row < GRID_ROWS; row++) {
+                const gridIndex = (GRID_ROWS - 1 - row) * GRID_COLS + col;
+                const note = NOTE_RANGES.GRID.START + gridIndex;
+                let velocity = LED_COLOR.OFF;
+
+                if (row === 7) {
+                    // 8行目: ランダムモードの状態
+                    velocity = param.isRandom ? LED_COLOR.GREEN : LED_COLOR.RED;
+                }
+                else if (row < activeRows) {
+                    // 選択肢内の行
+                    const currentValue = param.isRandom ? param.randomValue : param.selectedRow;
+
+                    if (row === currentValue) {
+                        // アクティブな選択 (青)
+                        velocity = LED_COLOR.BLUE;
+                    } else {
+                        // 選択可能な非アクティブな選択 (赤)
+                        velocity = LED_COLOR.RED;
+                    }
+                }
+
+                this.send(MIDI_STATUS.NOTE_ON, note, velocity);
+            }
+        }
+
+        // 3. フェーダーボタンのLED制御 (トグル状態の表示)
+        for (let i = 0; i < 9; i++) {
+            let note: number;
+            if (i < 8) {
+                note = NOTE_RANGES.FADER_BUTTONS.START + i;
+            } else {
+                note = NOTE_RANGES.FADER_BUTTON_8;
+            }
+            const velocity = this.faderButtonToggleState[i] ? LED_COLOR.BRIGHT_WHITE : LED_COLOR.OFF;
+            this.send(MIDI_STATUS.NOTE_ON, note, velocity);
+        }
+    }
+
+    /**
+     * MIDIメッセージを送信するヘルパー (MIDIManager経由)
+     */
+    private send(status: number, data1: number, data2: number): void {
+        this.sendMessage([status, data1, data2]);
+    }
+
+    public async init(): Promise<void> {
+        // 基底クラスで初期化済み
+    }
+}
