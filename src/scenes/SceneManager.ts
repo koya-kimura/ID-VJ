@@ -13,28 +13,39 @@ export class SceneManager {
     private currentSceneIndex: number = -1;
     private currentScene: IScene | null = null;
     private apcManager: APCMiniMK2Manager; // APCコントローラーへのアクセス
+    private mainTexture: p5.Graphics | null = null;
+    private drawTexture: p5.Graphics | null = null;
 
     /**
      * SceneManagerを初期化し、最初のシーンをロードします。
      * @param apcManager APC Mini MK2のマネージャーインスタンス
      * @param scenes VJプロジェクトで利用するすべてのシーンの配列
      */
-    constructor(apcManager: APCMiniMK2Manager, scenes: IScene[]) {
+    constructor(apcManager: APCMiniMK2Manager) {
         this.apcManager = apcManager;
-        this.scenes = scenes;
+        this.scenes = [];
+        this.mainTexture = null;
+        this.drawTexture = null;
+    }
 
-        // 最初のシーン (インデックス 0) をロード
-        if (this.scenes.length > 0) {
-            this.switchScene(0);
-        }
+    // load(p: p5, vertexShaderPath: string, fragmentShaderPath: string): void {
+    //     this.postShader = p.loadShader(vertexShaderPath, fragmentShaderPath);
+    // }
+
+    setup(p: p5, scenes: IScene[]): void {
+        this.scenes = scenes;
+        this.switchScene(0);
+
+        this.mainTexture = p.createGraphics(p.width, p.height, p.WEBGL);
+        this.drawTexture = p.createGraphics(p.width, p.height);
     }
 
     /**
      * メインループから呼び出され、シーンの切り替えチェックと現在のシーンの描画を実行します。
      * @param p p5.js インスタンス
-     * @param tempoIndex BPMManager から取得した現在のビートカウント
+     * @param currentBeat BPMManager から取得した現在のビートカウント
      */
-    public updateAndDraw(p: p5, tempoIndex: number): void {
+    public updateAndDraw(p: p5, currentBeat: number): void {
         const targetSceneIndex = this.apcManager.currentSceneIndex;
 
         // APCのサイドボタン選択に基づき、シーン切り替えが必要かチェック
@@ -43,16 +54,16 @@ export class SceneManager {
         }
 
         // 現在アクティブなシーンの描画ロジックを実行
-        if (this.currentScene) {
+        if (this.currentScene && this.drawTexture) {
             // シーン描画にp5インスタンス、APC Manager、BPMテンポインデックスを渡す
-            this.currentScene.draw(p, this.apcManager, tempoIndex);
+            this.currentScene.draw(p, this.drawTexture, this.apcManager, currentBeat);
         } else {
-            // フォールバック: シーンが見つからないエラー表示
-            p.background(0);
-            p.fill(255, 0, 0);
-            p.textSize(32);
-            p.text("NO SCENE LOADED", p.width / 2, p.height / 2);
+            console.log("NO SCENE LOADED");
         }
+    }
+
+    public getDrawTexture(): p5.Graphics | null {
+        return this.drawTexture;
     }
 
     /**
@@ -81,5 +92,14 @@ export class SceneManager {
      */
     public getCurrentSceneName(): string {
         return this.currentScene ? this.currentScene.name : "N/A";
+    }
+
+    public resize(p: p5): void {
+        if (this.mainTexture) {
+            this.mainTexture.resizeCanvas(p.width, p.height);
+        }
+        if (this.drawTexture) {
+            this.drawTexture.resizeCanvas(p.width, p.height);
+        }
     }
 }

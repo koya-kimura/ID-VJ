@@ -17,5 +17,5 @@ export interface IUIOverlay {
      * @param bpmManager BPM マネージャー
      * @param tempoIndex 現在のビートカウント
      */
-    draw(p: p5, midiManager: APCMiniMK2Manager, bpmManager: BPMManager, tempoIndex: number): void;
+    draw(p: p5, tex: p5.Graphics | null, midiManager: APCMiniMK2Manager, bpmManager: BPMManager, currentBeat: number): void;
 }

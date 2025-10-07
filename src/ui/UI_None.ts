@@ -11,7 +11,7 @@ import { BPMManager } from '../rhythm/BPMManager';
 export class UI_None implements IUIOverlay {
     public name: string = "None";
 
-    public draw(p: p5, midiManager: APCMiniMK2Manager, bpmManager: BPMManager, tempoIndex: number): void {
-        // 何も描画しない
+    public draw(p: p5, tex: p5.Graphics, midiManager: APCMiniMK2Manager, bpmManager: BPMManager, tempoIndex: number): void {
+        tex.clear(); // 何も描画しない
     }
 }

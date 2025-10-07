@@ -19,8 +19,9 @@ export interface IScene {
      * 毎フレームの描画処理。
      * 💡 修正: tempoIndex を追加
      * @param p p5.js インスタンス
+     * @param tex 描画用のp5.Graphicsオブジェクト
      * @param apcManager APC Mini MK2のマネージャーインスタンス
-     * @param tempoIndex BPMManager から取得した現在のビートカウント
+     * @param currentBeat BPMManager から取得した現在のビートカウント
      */
-    draw(p: p5, apcManager: APCMiniMK2Manager, tempoIndex: number): void;
+    draw(p: p5, tex: p5.Graphics, apcManager: APCMiniMK2Manager, currentBeat: number): void;
 }

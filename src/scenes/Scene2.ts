@@ -1,99 +1,78 @@
-// src/scenes/Scene1.ts (エラー修正版)
+// src/scenes/WorkingScene.ts
 
 import p5 from 'p5';
 import type { IScene } from "./IScene";
 import { APCMiniMK2Manager } from '../midi/APCMiniMK2Manager';
 
-/**
- * シーン1: オリジナルのJavaScriptコードをそのまま再現したアニメーション
- */
-export class Scene1 implements IScene {
-    public name: string = "Scene 1: BPM Linked Seed Logic";
+export class Scene2 implements IScene {
+    public name: string = "Working Scene: Line Flow - Rotation";
 
-    // APCManagerがmaxOptionsをリセットするため、全てのカラムをMax 1に設定
-    private maxOptions: number[] = [4, 4, 4, 4, 4, 4, 4, 4];
+    private maxOptions: number[] = [
+        4, // P0: ライン密度
+        5, // P1: 速度
+        8, // P2: 線の太さ
+        4, // 💡 P3: 進行方向 (8 options)
+        4,
+        4,
+        4,
+        1 // P4-P7: 未使用
+    ];
+
 
     public setup(apcManager: APCMiniMK2Manager, sceneIndex: number): void {
         apcManager.setMaxOptionsForScene(sceneIndex, this.maxOptions);
     }
 
-    /**
-     * 描画処理
-     */
-    public draw(p: p5, apcManager: APCMiniMK2Manager, tempoIndex: number): void {
-        // 💡 修正: pから必要なメソッドを安全にデストラクト。random()を使用する。
-        const { width, height, random, max, TAU } = p;
 
-        // --- 1. currentSeed の BPM/テンポ連動計算 ---
-        const currentSeed = p.floor(tempoIndex);
+    public draw(p: p5, tex: p5.Graphics, apcManager: APCMiniMK2Manager, currentBeat: number): void {
 
-        // randomSeedに大きな定数を乗算して乱数パターンを生成
-        p.randomSeed(currentSeed * 4716041);
+        const lineNum = p.pow(2, apcManager.getParamValue(0)) * 10;
+        const speed = p.map(p.pow(apcManager.getParamValue(1)/this.maxOptions[1], 2), 0, 1, 1, 20);
+        const angleMode = ["vert", "horz", "vertmix", "horzmix", "vert&horz", "diag", "rand"][apcManager.getParamValue(2) % 8];
+        const lineLengthScl = p.map(apcManager.getParamValue(3)/this.maxOptions[3], 0, 1, 0.1, 1.0);
+        const lineWeightScl = p.map(p.pow(apcManager.getParamValue(4)/this.maxOptions[4], 2), 0, 1, 0.01, 0.8);
+        const gridNum = p.pow(2, p.floor(apcManager.getParamValue(5)/this.maxOptions[5]*4)); // 1,2,4,8
+        const canvasScl = p.pow(2, p.floor(apcManager.getParamValue(6) / this.maxOptions[6] * 4)) / 2; // 1,2,4,8
 
-        // --- パラメータの定義 (全て p.random() と定数で決定) ---
+        tex.push();
+        tex.background(0);
+        tex.translate(tex.width / 2, tex.height / 2);
+        tex.scale(canvasScl);
 
-        p.background(0, 200);
+        const canvasSize = p.max(tex.width, tex.height) * p.sqrt(2);
 
-        const diagonalLength = p.max(width, height) * Math.sqrt(2);
-        const cols = 16;
-
-        // 💡 修正: random(10, 40) の結果を Math.floor() してから *4 を行う
-        const rows = 4 * Math.floor(p.random(10, 40));
-
-        // 💡 修正: p.random(1, 5) の結果を Math.floor() してから *2 を行う
-        const numSteps = 2 * Math.floor(p.random(1, 5));
-
-        // 💡 修正: p.random(numSteps / 3) の結果を Math.floor() してから *2 を行う
-        const patternWidth = Math.floor(p.random(numSteps / 3)) * 2;
-
-        // 💡 修正: p.random(3) の結果を Math.floor() してから Math.pow() を行う
-        const groupingFactor = Math.pow(2, Math.floor(p.random(3)));
-
-        // アニメーションの現在のステップ (元のJSロジックに従う)
-        const currentStep = Math.floor(p.frameCount * 0.2) % numSteps;
-
-        // --- 2. 描画ロジック ---
-
-        p.push();
-        p.translate(width / 2, height / 2);
-
-        p.rotate(TAU * Math.floor(p.random(8)) / 8);
-
-        const tileWidth = diagonalLength / cols;
-        const tileHeight = diagonalLength / rows;
-        const rectGap = 0;
-
-        for (let i = 0; i < cols; i++) {
-            for (let j = 0; j < rows; j++) {
-
-                // タイルの中心座標
-                const xPos = diagonalLength * i / cols - diagonalLength / 2 + tileWidth / 2;
-                const yPos = diagonalLength * j / rows - diagonalLength / 2 + tileHeight / 2;
-
-                // タイルグループによる方向の決定
-                const isEvenGroup = Math.floor(i / groupingFactor) % 2 === 0;
-                const animationDirection = isEvenGroup ? currentStep : numSteps - 1 - currentStep;
-
-                const rowPatternIndex = j % numSteps;
-
-                // 表示範囲の開始と終了
-                const patternStart = animationDirection - patternWidth / 2;
-                const patternEnd = animationDirection + patternWidth / 2;
-
-                // タイルを表示するかどうかの判定
-                const shouldShowTile = (rowPatternIndex >= patternStart) && (rowPatternIndex <= patternEnd);
-
-                if (shouldShowTile) {
-                    p.push();
-                    p.noStroke();
-                    p.fill(255);
-                    p.translate(xPos, yPos);
-                    p.rectMode(p.CENTER);
-                    p.rect(0, 0, tileWidth - rectGap, tileHeight - rectGap);
-                    p.pop();
-                }
+        for (let i = 0; i < lineNum; i++) {
+            const h = canvasSize / lineNum;
+            const y = (h * i + speed * p.frameCount) % canvasSize - canvasSize / 2;
+            let angle = 0;
+            switch (angleMode) {
+                case "vert": angle = 0; break;
+                case "horz": angle = p.HALF_PI; break;
+                case "vertmix": angle = (p.noise(i, 3710) < 0.5) ? 0 : p.PI; break;
+                case "horzmix": angle = (p.noise(i, 4897) < 0.5) ? p.HALF_PI : -p.HALF_PI; break;
+                case "vert&horz": angle = p.TAU * p.floor(p.noise(i, 1234)*16)/4; break;
+                case "diag": angle = p.PI * 0.25; break;
+                case "rand": angle = p.TAU * p.noise(i, 41709) * 10; break;
             }
+
+            tex.push();
+            tex.strokeCap(p.SQUARE);
+            tex.stroke(255);
+            tex.strokeWeight(lineWeightScl * canvasSize / lineNum);
+            tex.rotate(angle);
+
+            for(let g=0; g<gridNum; g++){
+                const l = canvasSize * lineLengthScl;
+                const x = p.map(g, 0, gridNum, -l/2, l/2);
+                const ny = (g % 2 == 0) ? y : p.map(y, -canvasSize/2, canvasSize/2, canvasSize/2, -canvasSize/2);
+
+                tex.push();
+                tex.translate(x, ny);
+                tex.line(0, 0, l/gridNum, 0);
+                tex.pop();
+            }
+            tex.pop();
         }
-        p.pop();
+        tex.pop();
     }
 }

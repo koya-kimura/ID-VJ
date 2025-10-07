@@ -1,10 +1,19 @@
 // src/main.ts
 
 import p5 from 'p5';
+
 import { APCMiniMK2Manager } from './midi/APCMiniMK2Manager';
 import { BPMManager } from './rhythm/BPMManager';
 import { SceneManager } from './scenes/SceneManager';
+import { WorkingScene } from './scenes/WorkingScene';
 import { Scene1 } from './scenes/Scene1';
+import { Scene2 } from './scenes/Scene2';
+import { Scene3 } from './scenes/Scene3';
+import { Scene4 } from './scenes/Scene4';
+import { Scene5 } from './scenes/Scene5';
+import { Scene6 } from './scenes/Scene6';
+import { Scene7 } from './scenes/Scene7';
+import { Scene8 } from './scenes/Scene8';
 import type { IScene } from './scenes/IScene';
 import { UIManager } from './ui/UIManager';
 import type { IUIOverlay } from './ui/IUIOverlay';
@@ -12,46 +21,43 @@ import { UI_None } from './ui/UI_None';
 import { UI_Pattern1 } from './ui/UI_Pattern1';
 
 // グローバルなマネージャーインスタンスの宣言
-let midiManager: APCMiniMK2Manager;
-let bpmManager: BPMManager;
-let sceneManager: SceneManager;
-let uiManager: UIManager;
+let midiManager: APCMiniMK2Manager = new APCMiniMK2Manager();
+let bpmManager: BPMManager = new BPMManager();
+let sceneManager: SceneManager = new SceneManager(midiManager);
+let uiManager: UIManager = new UIManager(midiManager, bpmManager);
 
-// BPMに同期したビートカウントインデックス
-let tempoIndex = 0;
+// BPMの初期値
 let initialBPM = 120;
 
 // フォント
+let postShader: p5.Shader;
 let font: p5.Font;
 
 const sketch = (p: p5) => {
-
   /**
    * スケッチの初期設定 (p5.js setup)
    */
   p.setup = async () => {
-    font = await p.loadFont('../assets/HindMadurai-Regular.ttf');
+    p.createCanvas(p.windowWidth, p.windowHeight, p.WEBGL);
 
-    p.createCanvas(p.windowWidth, p.windowHeight);
+    font = await p.loadFont('./assets/HindMadurai-Regular.ttf');
+    postShader = await p.loadShader('./shader/post.vert', './shader/post.frag');
+
     p.noCursor();
     p.textFont(font);
 
-    // 1. MIDI/BPMマネージャーの初期化
-    midiManager = new APCMiniMK2Manager();
-    bpmManager = new BPMManager(initialBPM);
-
     // 2. VJシーンの登録とSceneManagerの初期化
     const allScenes: IScene[] = [
-      new Scene1(), // Scene 0 (サイドボタン1)
-      new Scene1(), // Scene 1 (以降、Scene 7まで続く)
-      new Scene1(),
-      new Scene1(),
-      new Scene1(),
-      new Scene1(),
-      new Scene1(),
-      new Scene1(),
+      new WorkingScene(),
+      new Scene2(),
+      new WorkingScene(),
+      new WorkingScene(),
+      new WorkingScene(),
+      new WorkingScene(),
+      new WorkingScene(),
+      new WorkingScene(),
     ];
-    sceneManager = new SceneManager(midiManager, allScenes);
+    sceneManager.setup(p, allScenes);
 
     // 3. UI Managerの初期化とUIパターンの登録
     const allUIPatterns: IUIOverlay[] = [
@@ -60,7 +66,7 @@ const sketch = (p: p5) => {
       new UI_None(),      // 2: 仮のUIパターン
       new UI_None(),      // 3: 仮のUIパターン
     ];
-    uiManager = new UIManager(midiManager, bpmManager, allUIPatterns);
+    uiManager.setup(p,allUIPatterns);
   }
 
   /**
@@ -70,25 +76,29 @@ const sketch = (p: p5) => {
     // BPMの更新とビートカウントのインクリメント
     if (bpmManager) {
       bpmManager.update();
-      if (bpmManager.isBeatUpdatedNow()) {
-        tempoIndex++;
-      }
     }
 
     // MIDI Managerの更新 (ランダム値計算とLED出力)
     if (midiManager) {
-      midiManager.update(tempoIndex);
+      midiManager.update(p.floor(bpmManager.getBeat()));
     }
 
     // Scene ManagerによるVJシーンの描画
     if (sceneManager) {
-      sceneManager.updateAndDraw(p, tempoIndex);
+      sceneManager.updateAndDraw(p, bpmManager.getBeat());
     }
 
     // UI Managerによるオーバーレイ描画
     if (uiManager) {
-      uiManager.draw(p, tempoIndex);
+      uiManager.draw(p, p.floor(bpmManager.getBeat()));
     }
+
+    p.shader(postShader);
+    postShader.setUniform("u_time", p.millis() / 1000.0);
+    postShader.setUniform("u_tex", sceneManager.getDrawTexture() || p.createGraphics(p.width, p.height));
+    postShader.setUniform("u_uitex", uiManager.getUITexture() || p.createGraphics(p.width, p.height));
+    postShader.setUniform("u_mosaic", midiManager.faderValues[0]);
+    p.rect(0, 0, p.width, p.height);
   }
 
   /**
@@ -96,6 +106,8 @@ const sketch = (p: p5) => {
    */
   p.windowResized = () => {
     p.resizeCanvas(p.windowWidth, p.windowHeight);
+    sceneManager.resize(p);
+    uiManager.resize(p);
   }
 
   /**

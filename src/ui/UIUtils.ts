@@ -8,18 +8,25 @@ export class UIUtils {
 
     /**
      * APC Mini MK2のグリッドパッド (8x8) の状態を描画します。
-     * ... (drawGridPads メソッドは変更なし) ...
+     * @param p p5.js インスタンス (主にユーティリティ関数用)
+     * @param tex 描画ターゲットとなる p5.Graphics バッファ
+     * @param midiManager APC Mini MK2 マネージャー
+     * @param x X座標 (描画開始位置)
+     * @param y Y座標 (描画開始位置)
+     * @param size パッド全体の幅または高さ (正方形として描画)
      */
-    public static drawGridPads(p: p5, midiManager: APCMiniMK2Manager, x: number, y: number, size: number): void {
+    public static drawGridPads(p: p5, tex: p5.Graphics, midiManager: APCMiniMK2Manager, x: number, y: number, size: number): void {
+        if (!tex) return; // バッファが存在しない場合は描画しない
+
         const PAD_ROWS = 8;
         const PAD_COLS = 8;
         const PAD_GAP = size * 0.01;
         const padSize = (size - PAD_GAP * (PAD_ROWS + 1)) / PAD_ROWS;
         const currentScene = midiManager.gridRadioState[midiManager.currentSceneIndex];
 
-        p.push();
-        p.translate(x, y);
-        p.rectMode(p.CORNER);
+        tex.push();
+        tex.translate(x, y);
+        tex.rectMode(p.CORNER); // p.CORNERはp5定数なのでpから取得
 
         for (let col = 0; col < PAD_COLS; col++) {
             for (let row = 0; row < PAD_ROWS; row++) {
@@ -33,41 +40,44 @@ export class UIUtils {
 
                 const APC_ROW_INDEX = PAD_ROWS - 1 - row;
 
-                p.stroke(255);
-                p.strokeWeight(1);
-                p.noFill();
+                // 描画コマンドを tex に切り替え
+                tex.stroke(255);
+                tex.strokeWeight(1);
+                tex.noFill();
 
                 if (APC_ROW_INDEX >= activeRows && APC_ROW_INDEX !== 7) {
-                    p.noFill();
+                    tex.noFill();
                 }
                 else if (APC_ROW_INDEX === 7) {
                     if (param.isRandom) {
-                        p.fill(255);
+                        tex.fill(255);
                     } else {
-                        p.noFill();
+                        tex.noFill();
                     }
                 }
                 else if (APC_ROW_INDEX < activeRows) {
                     const currentValue = midiManager.getParamValue(col);
 
                     if (APC_ROW_INDEX === currentValue) {
-                        p.fill(255);
+                        tex.fill(255);
                     } else {
-                        p.noFill();
+                        tex.noFill();
                     }
                 }
 
-                p.rect(xPos, yPos, padSize * 0.85, padSize * 0.85);
+                tex.rect(xPos, yPos, padSize * 0.85, padSize * 0.85);
             }
         }
-        p.pop();
+        tex.pop();
     }
 
 
     /**
      * 9本のフェーダーの値とトグルボタンの状態を描画します。
      */
-    public static drawFaders(p: p5, midiManager: APCMiniMK2Manager, x: number, y: number, width: number, height: number): void {
+    public static drawFaders(p: p5, tex: p5.Graphics, midiManager: APCMiniMK2Manager, x: number, y: number, width: number, height: number): void {
+        if (!tex) return; // バッファが存在しない場合は描画しない
+
         const FADER_COUNT = 9;
         const FADER_SPACING_FACTOR = 0.05;
         const totalGap = width * FADER_SPACING_FACTOR;
@@ -79,10 +89,10 @@ export class UIUtils {
         const barStrokeWidth = 1;
         const knobSize = faderWidth * 0.4;
 
-        p.push();
-        p.translate(x, y);
-        p.rectMode(p.CORNER);
-        p.textAlign(p.CENTER, p.CENTER);
+        tex.push();
+        tex.translate(x, y);
+        tex.rectMode(p.CORNER); // p.CORNERはp5定数なのでpから取得
+        tex.textAlign(p.CENTER, p.CENTER); // p.CENTERはp5定数なのでpから取得
 
         for (let i = 0; i < FADER_COUNT; i++) {
             const xPos = i * (faderWidth + totalGap / FADER_COUNT);
@@ -91,34 +101,34 @@ export class UIUtils {
             const centerX = xPos + faderWidth / 2;
 
             // 1. フェーダーセンターラインの描画
-            p.stroke(255);
-            p.strokeWeight(barStrokeWidth);
-            p.line(centerX, 0, centerX, barHeight);
+            tex.stroke(255);
+            tex.strokeWeight(barStrokeWidth);
+            tex.line(centerX, 0, centerX, barHeight);
 
             // 2. フェーダーノブ (四角形) の描画
             const knobY = barHeight * (1 - value);
 
-            p.noStroke();
-            p.fill(255);
-            p.rectMode(p.CENTER);
-            p.rect(centerX, knobY, knobSize, knobSize * 0.4);
+            tex.noStroke();
+            tex.fill(255);
+            tex.rectMode(p.CENTER); // p.CENTERはp5定数なのでpから取得
+            tex.rect(centerX, knobY, knobSize, knobSize * 0.4);
 
             // 3. トグルボタンの描画
             const buttonY = barHeight + 20;
 
-            p.stroke(255);
-            p.strokeWeight(1);
+            tex.stroke(255);
+            tex.strokeWeight(1);
 
             if (buttonState) {
-                p.fill(255);
+                tex.fill(255);
             } else {
-                p.noFill();
+                tex.noFill();
             }
 
-            p.rectMode(p.CORNER);
-            p.rect(centerX - buttonSize / 2, buttonY, buttonSize, buttonSize);
+            tex.rectMode(p.CORNER); // p.CORNERはp5定数なのでpから取得
+            tex.rect(centerX - buttonSize / 2, buttonY, buttonSize, buttonSize);
         }
-        p.pop();
+        tex.pop();
     }
 
     /**

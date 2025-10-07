@@ -130,11 +130,7 @@ export class APCMiniMK2Manager extends MIDIManager {
 }
 ```
 
-## その後のやりとり
-
-https://g.co/gemini/share/cdf912a6d794
-
-## geminiからの評価
+## geminiからの中間評価
 
 ### APC Mini MK2 VJ制御システムの構築概要
 
