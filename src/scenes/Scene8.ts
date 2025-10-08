@@ -20,8 +20,7 @@ export class Scene8 implements IScene {
     /**
      * 描画処理
      */
-    public draw(p: p5, apcManager: APCMiniMK2Manager, tempoIndex: number): void {
-        p.push();
+    public draw(p: p5, tex: p5.Graphics, tex3d: p5.Graphics, apcManager: APCMiniMK2Manager, currentBeat: number): void {
         p.background(255, 0, 0);
         p.pop();
     }

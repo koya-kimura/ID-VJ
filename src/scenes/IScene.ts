@@ -23,5 +23,5 @@ export interface IScene {
      * @param apcManager APC Mini MK2のマネージャーインスタンス
      * @param currentBeat BPMManager から取得した現在のビートカウント
      */
-    draw(p: p5, tex: p5.Graphics, apcManager: APCMiniMK2Manager, currentBeat: number): void;
+    draw(p: p5, tex: p5.Graphics, tex3d: p5.Graphics, apcManager: APCMiniMK2Manager, currentBeat: number): void;
 }

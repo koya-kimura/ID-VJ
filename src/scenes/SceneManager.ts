@@ -13,7 +13,7 @@ export class SceneManager {
     private currentSceneIndex: number = -1;
     private currentScene: IScene | null = null;
     private apcManager: APCMiniMK2Manager; // APCコントローラーへのアクセス
-    private mainTexture: p5.Graphics | null = null;
+    private threeTexture: p5.Graphics | null = null;
     private drawTexture: p5.Graphics | null = null;
 
     /**
@@ -24,7 +24,7 @@ export class SceneManager {
     constructor(apcManager: APCMiniMK2Manager) {
         this.apcManager = apcManager;
         this.scenes = [];
-        this.mainTexture = null;
+        this.threeTexture = null;
         this.drawTexture = null;
     }
 
@@ -36,7 +36,7 @@ export class SceneManager {
         this.scenes = scenes;
         this.switchScene(0);
 
-        this.mainTexture = p.createGraphics(p.width, p.height, p.WEBGL);
+        this.threeTexture = p.createGraphics(p.width, p.height, p.WEBGL);
         this.drawTexture = p.createGraphics(p.width, p.height);
     }
 
@@ -54,9 +54,10 @@ export class SceneManager {
         }
 
         // 現在アクティブなシーンの描画ロジックを実行
-        if (this.currentScene && this.drawTexture) {
+        if (this.currentScene && this.drawTexture && this.threeTexture) {
             // シーン描画にp5インスタンス、APC Manager、BPMテンポインデックスを渡す
-            this.currentScene.draw(p, this.drawTexture, this.apcManager, currentBeat);
+            this.drawTexture.background(0, p.map(this.apcManager.faderValues[8], 0, 1, 1, 0) * 255);
+            this.currentScene.draw(p, this.drawTexture, this.threeTexture, this.apcManager, currentBeat);
         } else {
             console.log("NO SCENE LOADED");
         }
@@ -95,8 +96,8 @@ export class SceneManager {
     }
 
     public resize(p: p5): void {
-        if (this.mainTexture) {
-            this.mainTexture.resizeCanvas(p.width, p.height);
+        if (this.threeTexture) {
+            this.threeTexture.resizeCanvas(p.width, p.height);
         }
         if (this.drawTexture) {
             this.drawTexture.resizeCanvas(p.width, p.height);

@@ -24,7 +24,7 @@ export class Scene2 implements IScene {
     }
 
 
-    public draw(p: p5, tex: p5.Graphics, apcManager: APCMiniMK2Manager, currentBeat: number): void {
+    public draw(p: p5, tex: p5.Graphics, tex3d: p5.Graphics, apcManager: APCMiniMK2Manager, currentBeat: number): void {
 
         const lineNum = p.pow(2, apcManager.getParamValue(0)) * 10;
         const speed = p.map(p.pow(apcManager.getParamValue(1)/this.maxOptions[1], 2), 0, 1, 1, 20);
@@ -35,7 +35,6 @@ export class Scene2 implements IScene {
         const canvasScl = p.pow(2, p.floor(apcManager.getParamValue(6) / this.maxOptions[6] * 4)) / 2; // 1,2,4,8
 
         tex.push();
-        tex.background(0);
         tex.translate(tex.width / 2, tex.height / 2);
         tex.scale(canvasScl);
 

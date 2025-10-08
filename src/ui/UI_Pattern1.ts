@@ -14,103 +14,119 @@ export class UI_Pattern1 implements IUIOverlay {
 
     // 💡 修正: drawのシグネチャを変更。texをメインの描画ターゲットとする
     public draw(p: p5, tex: p5.Graphics, midiManager: APCMiniMK2Manager, bpmManager: BPMManager, currentBeat: number): void {
-        const { width, height } = p;
 
-        // --- 1. 中央の描画スペースの計算 ---
-        const centralSquareSize = height;
-        const centralStartX = (width - centralSquareSize) / 2;
-        const cropWidth = centralStartX;
-
-        const leftUIX = 0;
-        const rightUIX = centralStartX + centralSquareSize;
-
-        // 💡 tex の描画コンテキストを操作
         tex.push();
-        tex.colorMode(p.RGB);
+        const centralSquareSize = p.height;
+        const rectSpaceWidth = (p.width - centralSquareSize) * 0.5;
         tex.noStroke();
-
-        // --- 2. 左右の黒いクロップエリアの描画 ---
-        // メインキャンバスの代わりにtexに描画
         tex.fill(0);
-        tex.rect(leftUIX, 0, cropWidth, height);
-        tex.rect(rightUIX, 0, cropWidth, height);
+        tex.rect(0, 0, rectSpaceWidth, p.height);
+        tex.rect(tex.width - rectSpaceWidth, 0, rectSpaceWidth, p.height);
 
-        // --- 3. UI情報の描画 (白で描画) ---
-        tex.fill(255);
-        tex.textAlign(p.LEFT, p.TOP);
-
-        // --- 設定変数 ---
-        const PADDING = 20;
-        const CONTENT_WIDTH = cropWidth - 2 * PADDING;
-        const APC_DRAW_SCALE = 0.6;
-
-
-        // =================================================================
-        // A. 左側UIエリア (日時、BPM、テキストパラメーター)
-        // =================================================================
-        let currentY = PADDING;
-
-        // 1. 日時情報の表示
-        const dateTime = UIUtils.getCurrentDateTime();
-        tex.textSize(18);
-        tex.text(dateTime.date, leftUIX + PADDING, currentY); currentY += 25;
-        tex.text(dateTime.time, leftUIX + PADDING, currentY); currentY += 40;
-
-        // 2. BPMとテンポ情報
-        tex.textSize(16);
-        tex.text(`BPM: ${bpmManager.getBPM().toFixed(1)}`, leftUIX + PADDING, currentY); currentY += 20;
-        tex.text(`Beat: ${currentBeat.toFixed(2)}`, leftUIX + PADDING, currentY); currentY += 30; // 💡 小数点表示
-
-        // 3. パラメーターのテキスト表示
-        tex.textSize(14);
-        tex.text(`Scene ${midiManager.currentSceneIndex} Params:`, leftUIX + PADDING, currentY); currentY += 20;
-
+        // pad
+        const PAD_ROWS = 8;
+        const PAD_COLS = 8;
+        const padSize = rectSpaceWidth * 0.8 / PAD_ROWS;
+        const drawAreaLength = padSize * PAD_ROWS;
+        const gap = (rectSpaceWidth - drawAreaLength) * 0.5;
         const currentScene = midiManager.gridRadioState[midiManager.currentSceneIndex];
-        for (let col = 0; col < 8; col++) {
-            const param = currentScene[col];
-            const currentValue = midiManager.getParamValue(col);
 
-            let displayStr = `P${col}: ${currentValue} (Max ${param.maxOptions})`;
+        tex.push();
+        tex.translate(gap, tex.height-gap-padSize*PAD_ROWS);
+        tex.rectMode(p.CORNER); // p.CORNERはp5定数なのでpから取得
 
-            if (param.isRandom) {
-                tex.fill(150); // ランダム中は薄いグレー
-                displayStr += ` RND`;
-            } else {
-                tex.fill(255);
+        for (let col = 0; col < PAD_COLS; col++) {
+            for (let row = 0; row < PAD_ROWS; row++) {
+                const param = currentScene[col];
+                const activeRows = param.maxOptions;
+
+                const xPos = col * padSize + padSize * 0.5;
+                const yPos = row * padSize + padSize * 0.5;
+
+                // 描画コマンドを tex に切り替え
+                tex.stroke(255);
+                tex.strokeWeight(1);
+                tex.noFill();
+
+                if (row >= activeRows && row !== 7) {
+                    tex.noFill();
+                }
+                else if (row === 7) {
+                    if (param.isRandom) {
+                        tex.fill(255);
+                    } else {
+                        tex.noFill();
+                    }
+                }
+                else if (row < activeRows) {
+                    const currentValue = midiManager.getParamValue(col);
+
+                    if (row === currentValue) {
+                        tex.fill(255);
+                    } else {
+                        tex.noFill();
+                    }
+                }
+
+                tex.rect(xPos, yPos, padSize * 0.6, padSize * 0.6);
             }
-            tex.text(displayStr, leftUIX + PADDING, currentY); currentY += 18;
         }
+        tex.pop();
 
-        // =================================================================
-        // B. 右側UIエリア (APC Mini MK2のグラフィカル表示)
-        // =================================================================
+        // fader
+        const FADER_COUNT = 9;
 
-        currentY = PADDING;
+        tex.push();
+        tex.translate(tex.width - drawAreaLength - gap, tex.height - drawAreaLength - gap);
 
-        // 1. グリッドパッドの描画 (上部に配置)
-        const maxPadSize = CONTENT_WIDTH * APC_DRAW_SCALE;
-        // padXを中央に配置するロジックを右側エリアの左端から計算
-        const padX = rightUIX + PADDING + (CONTENT_WIDTH - maxPadSize) / 2;
+        for (let i = 0; i < FADER_COUNT; i++) {
+            const xPos = i * drawAreaLength / FADER_COUNT + drawAreaLength * 0.5 / FADER_COUNT;
+            const value = midiManager.faderValues[i];
+            const buttonState = midiManager.faderButtonToggleState[i];
+            const knobY = drawAreaLength * (1 - value) * 0.8;
+            const knobSize = drawAreaLength * 0.5 / FADER_COUNT;
 
-        // UIUtils関数を呼び出し、描画ターゲットとして tex を渡す
-        UIUtils.drawGridPads(p, tex, midiManager, padX, currentY, maxPadSize);
-        currentY += maxPadSize + 30; // パッドの高さ + 余白
+            // 1. フェーダーセンターラインの描画
+            tex.stroke(255);
+            tex.strokeWeight(2);
+            tex.line(xPos, 0, xPos, drawAreaLength * 0.8);
+            tex.line(xPos - knobSize * 0.5, 0, xPos + knobSize * 0.5, 0);
 
-        // 2. シーンボタンの状態表示 (簡易) - グリッドパッドの下に配置
-        tex.textSize(16);
+            // 2. フェーダーノブ (四角形) の描画
+
+            tex.noStroke();
+            tex.fill(255);
+            tex.rectMode(p.CENTER);
+            tex.rect(xPos, knobY, knobSize * 1.5, knobSize);
+
+            // 3. トグルボタンの描画
+            const buttonY = drawAreaLength * 0.9;
+
+            tex.stroke(255);
+            tex.strokeWeight(1);
+
+            if (buttonState) {
+                tex.fill(255);
+            } else {
+                tex.noFill();
+            }
+
+            tex.rectMode(p.CENTER);
+            tex.rect(xPos, buttonY, knobSize, knobSize);
+        }
+        tex.pop();
+
+        // text
+        tex.textFont("Helvetica");
         tex.fill(255);
-        tex.text(`Scene Launch:`, rightUIX + PADDING, currentY);
-        currentY += 20;
+        tex.textAlign(p.CENTER, p.CENTER);
+        tex.textSize(p.min(tex.width, tex.height) * 0.1);
+        tex.translate(rectSpaceWidth, tex.height * 0.5)
+        tex.text("ID VJ", tex.width * 0.5, 30);
+        tex.textSize(12);
+        tex.text("www.kimura-lab.com", tex.width * 0.5, 50);
 
-        // 3. フェーダーの描画 (下部に配置)
-        const faderWidth = CONTENT_WIDTH * APC_DRAW_SCALE;
-        const faderHeight = height * 0.35;
-        const faderX = rightUIX + PADDING + (CONTENT_WIDTH - faderWidth) / 2;
-        const faderY = height - faderHeight - PADDING;
-
-        // UIUtils関数を呼び出し、描画ターゲットとして tex を渡す
-        UIUtils.drawFaders(p, tex, midiManager, faderX, faderY, faderWidth, faderHeight);
-
+        // final
         tex.pop();
     }
 }

@@ -50,12 +50,12 @@ const sketch = (p: p5) => {
     const allScenes: IScene[] = [
       new WorkingScene(),
       new Scene2(),
-      new WorkingScene(),
-      new WorkingScene(),
-      new WorkingScene(),
-      new WorkingScene(),
-      new WorkingScene(),
-      new WorkingScene(),
+      new Scene3(),
+      new Scene4(),
+      new Scene5(),
+      new Scene6(),
+      new Scene7(),
+      new Scene8(),
     ];
     sceneManager.setup(p, allScenes);
 
@@ -97,7 +97,12 @@ const sketch = (p: p5) => {
     postShader.setUniform("u_time", p.millis() / 1000.0);
     postShader.setUniform("u_tex", sceneManager.getDrawTexture() || p.createGraphics(p.width, p.height));
     postShader.setUniform("u_uitex", uiManager.getUITexture() || p.createGraphics(p.width, p.height));
-    postShader.setUniform("u_mosaic", midiManager.faderValues[0]);
+    postShader.setUniform("u_invert", midiManager.faderValues[0]);
+    postShader.setUniform("u_mosaic", midiManager.faderValues[1]);
+    postShader.setUniform("u_noise", midiManager.faderValues[2]);
+    postShader.setUniform("u_tile", midiManager.faderValues[3]);
+    postShader.setUniform("u_cut", midiManager.faderValues[4]);
+    postShader.setUniform("u_color", midiManager.faderValues[7]);
     p.rect(0, 0, p.width, p.height);
   }
 
