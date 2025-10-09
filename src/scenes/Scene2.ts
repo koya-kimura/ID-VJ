@@ -1,77 +1,118 @@
-// src/scenes/WorkingScene.ts
+// src/scenes/Scene2.ts
 
 import p5 from 'p5';
 import type { IScene } from "./IScene";
 import { APCMiniMK2Manager } from '../midi/APCMiniMK2Manager';
 
 export class Scene2 implements IScene {
-    public name: string = "Working Scene: Line Flow - Rotation";
+    public name: string = "Scene 2: Line Flow - Rotation";
 
-    private maxOptions: number[] = [
-        4, // P0: ライン密度
-        5, // P1: 速度
-        8, // P2: 線の太さ
-        4, // 💡 P3: 進行方向 (8 options)
-        4,
-        4,
-        4,
-        1 // P4-P7: 未使用
+    private readonly lineDensityOptions = [10, 20, 40, 80];
+    private readonly gridCopyOptions = [1, 2, 4, 8];
+    private readonly thicknessOptions = [0.01, 0.035, 0.08, 0.14];
+    private readonly canvasScaleOptions = [0.5, 1, 2, 4];
+    private readonly lengthOptions = [0.2, 0.45, 0.7, 1.0];
+    private readonly speedOptions = [2, 6, 12, 20];
+    private readonly angleModes = ["vert", "horz", "vertmix", "horzmix", "vert&horz", "diag", "rand"] as const;
+    private readonly scatterModes = ["none", "mirror", "dual"] as const;
+
+    private readonly maxOptions: number[] = [
+        this.lineDensityOptions.length,
+        this.gridCopyOptions.length,
+        this.thicknessOptions.length,
+        this.canvasScaleOptions.length,
+        this.lengthOptions.length,
+        this.speedOptions.length,
+        this.angleModes.length,
+        this.scatterModes.length,
     ];
-
 
     public setup(apcManager: APCMiniMK2Manager, sceneIndex: number): void {
         apcManager.setMaxOptionsForScene(sceneIndex, this.maxOptions);
     }
 
+    public draw(p: p5, tex: p5.Graphics, _tex3d: p5.Graphics, apcManager: APCMiniMK2Manager, _currentBeat: number): void {
+        const selection = new Array(8).fill(0).map((_, i) => apcManager.getParamValue(i));
 
-    public draw(p: p5, tex: p5.Graphics, tex3d: p5.Graphics, apcManager: APCMiniMK2Manager, currentBeat: number): void {
-
-        const lineNum = p.pow(2, apcManager.getParamValue(0)) * 10;
-        const speed = p.map(p.pow(apcManager.getParamValue(1)/this.maxOptions[1], 2), 0, 1, 1, 20);
-        const angleMode = ["vert", "horz", "vertmix", "horzmix", "vert&horz", "diag", "rand"][apcManager.getParamValue(2) % 8];
-        const lineLengthScl = p.map(apcManager.getParamValue(3)/this.maxOptions[3], 0, 1, 0.1, 1.0);
-        const lineWeightScl = p.map(p.pow(apcManager.getParamValue(4)/this.maxOptions[4], 2), 0, 1, 0.01, 0.8);
-        const gridNum = p.pow(2, p.floor(apcManager.getParamValue(5)/this.maxOptions[5]*4)); // 1,2,4,8
-        const canvasScl = p.pow(2, p.floor(apcManager.getParamValue(6) / this.maxOptions[6] * 4)) / 2; // 1,2,4,8
+        const lineCount = this.lineDensityOptions[selection[0]];
+        const gridCopies = this.gridCopyOptions[selection[1]];
+        const thickness = this.thicknessOptions[selection[2]];
+        const canvasScale = this.canvasScaleOptions[selection[3]];
+        const lineLengthScale = this.lengthOptions[selection[4]];
+        const speed = this.speedOptions[selection[5]];
+        const angleMode = this.angleModes[selection[6]];
+        const scatterMode = this.scatterModes[selection[7]];
 
         tex.push();
         tex.translate(tex.width / 2, tex.height / 2);
-        tex.scale(canvasScl);
+        tex.scale(canvasScale);
 
-        const canvasSize = p.max(tex.width, tex.height) * p.sqrt(2);
+        const canvasSize = Math.max(tex.width, tex.height) * Math.SQRT2;
+        const scatterFlip = scatterMode !== "none";
 
-        for (let i = 0; i < lineNum; i++) {
-            const h = canvasSize / lineNum;
-            const y = (h * i + speed * p.frameCount) % canvasSize - canvasSize / 2;
-            let angle = 0;
-            switch (angleMode) {
-                case "vert": angle = 0; break;
-                case "horz": angle = p.HALF_PI; break;
-                case "vertmix": angle = (p.noise(i, 3710) < 0.5) ? 0 : p.PI; break;
-                case "horzmix": angle = (p.noise(i, 4897) < 0.5) ? p.HALF_PI : -p.HALF_PI; break;
-                case "vert&horz": angle = p.TAU * p.floor(p.noise(i, 1234)*16)/4; break;
-                case "diag": angle = p.PI * 0.25; break;
-                case "rand": angle = p.TAU * p.noise(i, 41709) * 10; break;
-            }
+        for (let i = 0; i < lineCount; i++) {
+            const h = canvasSize / lineCount;
+            const baseY = (h * i + speed * p.frameCount) % canvasSize - canvasSize / 2;
+            const angle = this.resolveAngle(p, angleMode, i);
 
             tex.push();
             tex.strokeCap(p.SQUARE);
             tex.stroke(255);
-            tex.strokeWeight(lineWeightScl * canvasSize / lineNum);
+            tex.strokeWeight(thickness * canvasSize / lineCount);
             tex.rotate(angle);
 
-            for(let g=0; g<gridNum; g++){
-                const l = canvasSize * lineLengthScl;
-                const x = p.map(g, 0, gridNum, -l/2, l/2);
-                const ny = (g % 2 == 0) ? y : p.map(y, -canvasSize/2, canvasSize/2, canvasSize/2, -canvasSize/2);
+            for (let g = 0; g < gridCopies; g++) {
+                const length = canvasSize * lineLengthScale;
+                const x = p.map(g, 0, gridCopies, -length / 2, length / 2);
+                const modY = this.modulateY(baseY, canvasSize, g, scatterMode, lineCount, i);
 
                 tex.push();
-                tex.translate(x, ny);
-                tex.line(0, 0, l/gridNum, 0);
+                tex.translate(x, modY);
+                tex.line(0, 0, length / gridCopies, 0);
+
+                if (scatterFlip) {
+                    tex.push();
+                    tex.scale(1, -1);
+                    tex.line(0, 0, length / gridCopies, 0);
+                    tex.pop();
+                }
+
                 tex.pop();
             }
             tex.pop();
         }
         tex.pop();
+    }
+
+    private resolveAngle(p: p5, mode: typeof this.angleModes[number], index: number): number {
+        switch (mode) {
+            case "vert":
+                return 0;
+            case "horz":
+                return p.HALF_PI;
+            case "vertmix":
+                return p.noise(index, 3710) < 0.5 ? 0 : p.PI;
+            case "horzmix":
+                return p.noise(index, 4897) < 0.5 ? p.HALF_PI : -p.HALF_PI;
+            case "vert&horz":
+                return p.TWO_PI * p.floor(p.noise(index, 1234) * 16) / 4;
+            case "diag":
+                return p.PI * 0.25;
+            case "rand":
+            default:
+                return p.TWO_PI * p.noise(index, 41709) * 10;
+        }
+    }
+
+    private modulateY(base: number, canvasSize: number, copyIndex: number, mode: typeof this.scatterModes[number], lineCount: number, lineIndex: number): number {
+        if (mode === "none") {
+            return base;
+        }
+        const mirrored = copyIndex % 2 === 0 ? base : -base;
+        if (mode === "dual") {
+            const offset = ((lineIndex % 4) - 1.5) * (canvasSize / lineCount) * 0.12;
+            return mirrored + offset;
+        }
+        return mirrored;
     }
 }

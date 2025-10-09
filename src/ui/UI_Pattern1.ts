@@ -4,7 +4,7 @@ import p5 from 'p5';
 import type { IUIOverlay } from './IUIOverlay';
 import { APCMiniMK2Manager } from '../midi/APCMiniMK2Manager';
 import { BPMManager } from '../rhythm/BPMManager';
-import { UIUtils } from './UIUtils'; // 描画ユーティリティをインポート
+import { Easing } from '../utils/easing';
 
 /**
  * UIパターン1: 画面中央を正方形にクロップし、左右の黒い領域にAPCの状態を描画するオーバーレイ。
@@ -15,6 +15,7 @@ export class UI_Pattern1 implements IUIOverlay {
     // 💡 修正: drawのシグネチャを変更。texをメインの描画ターゲットとする
     public draw(p: p5, tex: p5.Graphics, midiManager: APCMiniMK2Manager, bpmManager: BPMManager, currentBeat: number): void {
 
+        tex.clear();
         tex.push();
         const centralSquareSize = p.height;
         const rectSpaceWidth = (p.width - centralSquareSize) * 0.5;
@@ -81,7 +82,7 @@ export class UI_Pattern1 implements IUIOverlay {
 
         for (let i = 0; i < FADER_COUNT; i++) {
             const xPos = i * drawAreaLength / FADER_COUNT + drawAreaLength * 0.5 / FADER_COUNT;
-            const value = midiManager.faderValues[i];
+            const value = Easing.easeInOutQuint(midiManager.faderValues[i]);
             const buttonState = midiManager.faderButtonToggleState[i];
             const knobY = drawAreaLength * (1 - value) * 0.8;
             const knobSize = drawAreaLength * 0.5 / FADER_COUNT;
@@ -120,11 +121,20 @@ export class UI_Pattern1 implements IUIOverlay {
         tex.textFont("Helvetica");
         tex.fill(255);
         tex.textAlign(p.CENTER, p.CENTER);
-        tex.textSize(p.min(tex.width, tex.height) * 0.1);
-        tex.translate(rectSpaceWidth, tex.height * 0.5)
-        tex.text("ID VJ", tex.width * 0.5, 30);
-        tex.textSize(12);
-        tex.text("www.kimura-lab.com", tex.width * 0.5, 50);
+        tex.push();
+        tex.textSize(p.min(tex.width, tex.height) * 0.5);
+        tex.translate(rectSpaceWidth, tex.height * 0.25);
+        tex.text("ID", 0, 0);
+        tex.pop();
+
+        tex.push();
+        tex.textSize(p.min(tex.width, tex.height) * 0.2);
+        tex.translate(rectSpaceWidth + tex.width * 0.5, tex.height * 0.25);
+        tex.rotate(p.HALF_PI)
+        tex.text("ID", 0, 0);
+        tex.text("ID", 0, tex.height * 0.2);
+        tex.text("ID", 0, -tex.height * 0.2);
+        tex.pop();
 
         // final
         tex.pop();

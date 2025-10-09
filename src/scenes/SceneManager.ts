@@ -15,6 +15,7 @@ export class SceneManager {
     private apcManager: APCMiniMK2Manager; // APCコントローラーへのアクセス
     private threeTexture: p5.Graphics | null = null;
     private drawTexture: p5.Graphics | null = null;
+    private lastAutoBeatIndex: number = -1;
 
     /**
      * SceneManagerを初期化し、最初のシーンをロードします。
@@ -46,6 +47,7 @@ export class SceneManager {
      * @param currentBeat BPMManager から取得した現在のビートカウント
      */
     public updateAndDraw(p: p5, currentBeat: number): void {
+        this.handleAutoSceneShuffle(currentBeat);
         const targetSceneIndex = this.apcManager.currentSceneIndex;
 
         // APCのサイドボタン選択に基づき、シーン切り替えが必要かチェック
@@ -56,7 +58,7 @@ export class SceneManager {
         // 現在アクティブなシーンの描画ロジックを実行
         if (this.currentScene && this.drawTexture && this.threeTexture) {
             // シーン描画にp5インスタンス、APC Manager、BPMテンポインデックスを渡す
-            this.drawTexture.background(0, p.map(this.apcManager.faderValues[8], 0, 1, 1, 0) * 255);
+            this.drawTexture.background(0, 255);
             this.currentScene.draw(p, this.drawTexture, this.threeTexture, this.apcManager, currentBeat);
         } else {
             console.log("NO SCENE LOADED");
@@ -77,8 +79,12 @@ export class SceneManager {
         if (newScene) {
             console.log(`Switching scene from ${this.currentScene ? this.currentScene.name : 'None'} to ${newScene.name} (Index: ${index})`);
 
-            // 重要な処理: APC Managerの全パラメーターをデフォルト(maxOptions=1)にリセット
-            this.apcManager.resetAllMaxOptions();
+            // NOTE: 以前はシーン切替時に APC の全パラメーターをリセットしていましたが、
+            // そのためにページ移動でユーザーが変更した値が失われていました。
+            // ここではリセットを行わず、各シーンごとの状態（apcManager.gridRadioState 等）を
+            // 保持することで、他のページに移動しても値を復元できるようにします。
+            // 必要なら将来的に強制リセットフラグを追加してください。
+            // this.apcManager.resetAllMaxOptions();
 
             this.currentScene = newScene;
             this.currentSceneIndex = index;
@@ -102,5 +108,40 @@ export class SceneManager {
         if (this.drawTexture) {
             this.drawTexture.resizeCanvas(p.width, p.height);
         }
+    }
+
+    private handleAutoSceneShuffle(currentBeat: number): void {
+        if (this.scenes.length === 0) {
+            return;
+        }
+
+        const randomModeActive = this.apcManager.isRandomSceneModeActive();
+
+        if (!randomModeActive) {
+            this.lastAutoBeatIndex = -1;
+            return;
+        }
+
+        const beatIndex = Math.floor(currentBeat);
+        if (beatIndex === this.lastAutoBeatIndex) {
+            return;
+        }
+
+        this.lastAutoBeatIndex = beatIndex;
+
+        const nextIndex = this.pickRandomSceneIndex(this.apcManager.currentSceneIndex);
+        this.apcManager.selectScene(nextIndex);
+    }
+
+    private pickRandomSceneIndex(exclude: number): number {
+        if (this.scenes.length <= 1) {
+            return 0;
+        }
+
+        let candidate = exclude;
+        while (candidate === exclude) {
+            candidate = Math.floor(Math.random() * this.scenes.length);
+        }
+        return candidate;
     }
 }

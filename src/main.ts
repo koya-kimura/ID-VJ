@@ -5,7 +5,6 @@ import p5 from 'p5';
 import { APCMiniMK2Manager } from './midi/APCMiniMK2Manager';
 import { BPMManager } from './rhythm/BPMManager';
 import { SceneManager } from './scenes/SceneManager';
-import { WorkingScene } from './scenes/WorkingScene';
 import { Scene1 } from './scenes/Scene1';
 import { Scene2 } from './scenes/Scene2';
 import { Scene3 } from './scenes/Scene3';
@@ -19,15 +18,17 @@ import { UIManager } from './ui/UIManager';
 import type { IUIOverlay } from './ui/IUIOverlay';
 import { UI_None } from './ui/UI_None';
 import { UI_Pattern1 } from './ui/UI_Pattern1';
+import { UI_Pattern2 } from './ui/UI_Pattern2';
+import { UI_Pattern3 } from './ui/UI_Pattern3';
+import { UI_Pattern4 } from './ui/UI_Pattern4';
+import { UI_Pattern5 } from './ui/UI_Pattern5';
+import { Easing } from './utils/easing';
 
 // グローバルなマネージャーインスタンスの宣言
 let midiManager: APCMiniMK2Manager = new APCMiniMK2Manager();
 let bpmManager: BPMManager = new BPMManager();
 let sceneManager: SceneManager = new SceneManager(midiManager);
 let uiManager: UIManager = new UIManager(midiManager, bpmManager);
-
-// BPMの初期値
-let initialBPM = 120;
 
 // フォント
 let postShader: p5.Shader;
@@ -48,7 +49,7 @@ const sketch = (p: p5) => {
 
     // 2. VJシーンの登録とSceneManagerの初期化
     const allScenes: IScene[] = [
-      new WorkingScene(),
+  new Scene1(),
       new Scene2(),
       new Scene3(),
       new Scene4(),
@@ -63,8 +64,10 @@ const sketch = (p: p5) => {
     const allUIPatterns: IUIOverlay[] = [
       new UI_None(),      // 0: UIなし (オーバーレイ非表示)
       new UI_Pattern1(),  // 1: APC/BPMデバッグ情報
-      new UI_None(),      // 2: 仮のUIパターン
-      new UI_None(),      // 3: 仮のUIパターン
+      new UI_Pattern2(),  // 2: シーンタブ表示
+      new UI_Pattern3(),  // 3: カメラフレーム
+      new UI_Pattern4(),  // 4: 円形ポータルフレーム
+      new UI_Pattern5(),  // 5: データグリッドHUD
     ];
     uiManager.setup(p,allUIPatterns);
   }
@@ -95,14 +98,17 @@ const sketch = (p: p5) => {
 
     p.shader(postShader);
     postShader.setUniform("u_time", p.millis() / 1000.0);
+    postShader.setUniform("u_beat", bpmManager.getBeat());
     postShader.setUniform("u_tex", sceneManager.getDrawTexture() || p.createGraphics(p.width, p.height));
     postShader.setUniform("u_uitex", uiManager.getUITexture() || p.createGraphics(p.width, p.height));
-    postShader.setUniform("u_invert", midiManager.faderValues[0]);
-    postShader.setUniform("u_mosaic", midiManager.faderValues[1]);
-    postShader.setUniform("u_noise", midiManager.faderValues[2]);
-    postShader.setUniform("u_tile", midiManager.faderValues[3]);
-    postShader.setUniform("u_cut", midiManager.faderValues[4]);
-    postShader.setUniform("u_color", midiManager.faderValues[7]);
+    postShader.setUniform("u_invert", Easing.easeInOutSine(midiManager.faderValues[0]));
+    postShader.setUniform("u_mosaic", Easing.easeInOutSine(midiManager.faderValues[1]));
+    postShader.setUniform("u_noise", Easing.easeInOutSine(midiManager.faderValues[2]));
+    postShader.setUniform("u_tile", Easing.easeInOutSine(midiManager.faderValues[3]));
+    postShader.setUniform("u_cut", Easing.easeInOutSine(midiManager.faderValues[4]));
+    postShader.setUniform("u_monochrome", Easing.easeInOutSine(midiManager.faderValues[6]));
+    postShader.setUniform("u_color", Easing.easeInOutSine(midiManager.faderValues[7]));
+  postShader.setUniform("u_blackout", Easing.easeInOutSine(midiManager.faderValues[8]));
     p.rect(0, 0, p.width, p.height);
   }
 

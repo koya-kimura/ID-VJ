@@ -1,181 +1,188 @@
-// src/scenes/WorkingScene.ts
-
 import p5 from 'p5';
-import type { IScene } from "./IScene";
+import type { IScene } from './IScene';
 import { APCMiniMK2Manager } from '../midi/APCMiniMK2Manager';
 import { Easing } from '../utils/easing';
 
-/**
- * Working Scene: 3D Object Field
- * 3D空間の箱群をカメラ、パターン、回転で制御する複雑なシーン。
- */
-export class Scene4 implements IScene {
-    public name: string = "Working Scene: 3D Object Field";
+type ReturnMode = "bounce" | "oneway" | "linger" | "reverse";
+type DestinationMode = "line" | "ring" | "random" | "dual";
+type MotionProfile = "smooth" | "wave" | "zigzag" | "stutter";
+type PhaseMode = "uniform" | "spread" | "cascade" | "random";
 
-    // --- APC Mini MK2 maxOptions (変更なし) ---
-    // P0: Density, P1: Rotate Mode, P2: Camera, P3: Object Pattern, P4: Box Scale, P5: Radius Scale, P6: Render Mode, P7: Scale Animation
-    private maxOptions: number[] = [4, 8, 4, 4, 4, 4, 2, 2];
+export class Scene4 implements IScene {
+    public name: string = 'Scene 4: Radial Bloom';
+
+    private readonly circleCountOptions = [5, 7, 9, 12];
+    private readonly circleRadiusOptions = [0.09, 0.11, 0.135, 0.165];
+    private readonly travelRadiusOptions = [0.22, 0.36, 0.5, 0.65];
+    private readonly loopCountOptions = [1, 2, 4, 6];
+    private readonly returnModes: ReturnMode[] = ["bounce", "oneway", "linger", "reverse"];
+    private readonly destinationModes: DestinationMode[] = ["line", "ring", "random", "dual"];
+    private readonly motionProfiles: MotionProfile[] = ["smooth", "wave", "zigzag", "stutter"];
+    private readonly phaseModes: PhaseMode[] = ["uniform", "spread", "cascade", "random"];
+
+    private readonly maxOptions: number[] = [
+        this.circleCountOptions.length,
+        this.circleRadiusOptions.length,
+        this.travelRadiusOptions.length,
+        this.loopCountOptions.length,
+        this.returnModes.length,
+        this.destinationModes.length,
+        this.motionProfiles.length,
+        this.phaseModes.length,
+    ];
 
     public setup(apcManager: APCMiniMK2Manager, sceneIndex: number): void {
         apcManager.setMaxOptionsForScene(sceneIndex, this.maxOptions);
     }
 
-    /**
-     * 描画処理
-     */
-    public draw(p: p5, tex: p5.Graphics, tex3d: p5.Graphics, apcManager: APCMiniMK2Manager, currentBeat: number): void {
+    public draw(p: p5, tex: p5.Graphics, _tex3d: p5.Graphics, apcManager: APCMiniMK2Manager, currentBeat: number): void {
+        const selection = new Array(8).fill(0).map((_, i) => apcManager.getParamValue(i));
 
-        // 1. パラメーターの取得と値の変換
-        const getParamValue = apcManager.getParamValue.bind(apcManager);
+        const circleCount = this.circleCountOptions[selection[0]];
+        const circleRadiusScale = this.circleRadiusOptions[selection[1]];
+        const travelRadiusScale = this.travelRadiusOptions[selection[2]];
+        const loopCount = this.loopCountOptions[selection[3]];
+        const returnMode = this.returnModes[selection[4]];
+        const destinationMode = this.destinationModes[selection[5]];
+        const motionProfile = this.motionProfiles[selection[6]];
+        const phaseMode = this.phaseModes[selection[7]];
 
-        // P0: ボックスの密度
-        const boxNum = p.pow(2, getParamValue(0)) * 10;
-
-        // P1: 箱の回転モード
-        const boxRotateMode = ["None", "rotateX", "rotateY", "rotateZ", "rotateXY", "rotateXZ", "rotateYZ"][getParamValue(1) % 8];
-
-        // P2: カメラパターン
-        const cameraPattern = ["front", "rotateZoomOut", "rotateZoomIn"][getParamValue(2) % 3];
-
-        // P3: オブジェクトパターン
-        const objPatternNum = getParamValue(3);
-
-        // P4: 箱の基本スケール
-        const boxScl = getParamValue(4) / this.maxOptions[4] * 5.0 + 0.5;
-
-        // P5: フィールドの半径スケール
-        const radiusScl = getParamValue(5) / this.maxOptions[5] * 2.0 + 0.1;
-
-        // P6: 描画モード ("2d" or "3d")
-        const renderMode = ["2d", "3d"][getParamValue(6) % 2];
-
-        // P7: スケールアニメーション ("none" or "randomScale")
-        const scaleMode = ["none", "randomScale"][getParamValue(7) % 2];
-
-
-        // 2. 描画コンテキストの開始 (tex3d -> tex)
+        tex.background(0);
         tex.push();
+        tex.translate(tex.width / 2, tex.height / 2);
+        tex.noStroke();
 
-        tex3d.push();
+    const minDim = Math.min(tex.width, tex.height);
+    const circleRadius = minDim * circleRadiusScale * this.countSizeAttenuation(circleCount);
+        const travelRadius = minDim * travelRadiusScale;
 
-        p.randomSeed(p.noise(p.floor(currentBeat) * 417809) * 9890143);
-        tex3d.background(0);
+        const beatPhase = this.mod1(currentBeat);
+        for (let i = 0; i < circleCount; i++) {
+            const indexRatio = circleCount > 1 ? i / (circleCount - 1) : 0;
+            const phaseOffset = this.computePhaseOffset(phaseMode, i, circleCount);
+            const localPhase = this.mod1(beatPhase + phaseOffset);
 
-        // 3D空間のセットアップ
-        tex3d.translate(0, 0, p.min(tex3d.width, tex3d.height) * 0.5 / p.tan(p.PI / 6));
+            const angularProgress = loopCount * localPhase * p.TWO_PI;
+            const travelProgress = this.travelProgress(returnMode, localPhase);
+            const motionOffset = this.motionOffset(motionProfile, localPhase, i, minDim);
 
-        // 3. カメラの計算と適用
-        let camX = 0;
-        let camY = 0;
-        let camZ = 0;
-        let camAngleX = 0;
-        let camAngleY = 0;
-        let camAngleZ = 0;
-        const CAM_ROT_SPEED = currentBeat * 0.5;
+            const destination = this.destinationPoint(destinationMode, travelRadius, angularProgress, indexRatio, i);
 
-        switch (cameraPattern) {
-            case "front":
-                camZ = -500;
-                break;
-            case "rotateZoomOut":
-                camY = p.sin(CAM_ROT_SPEED) * 200;
-                camZ = -1000;
-                camAngleX = p.map(camY, -200, 200, p.PI / 6, -p.PI / 6);
-                camAngleY = CAM_ROT_SPEED - p.PI / 2;
-                break;
-            case "rotateZoomIn":
-                camY = p.sin(CAM_ROT_SPEED) * 200;
-                camZ = -100;
-                camAngleX = p.map(camY, -200, 200, p.PI / 6, -p.PI / 6);
-                camAngleY = CAM_ROT_SPEED - p.PI / 2;
-                break;
+            const x = destination.x * travelProgress + motionOffset.x;
+            const y = destination.y * travelProgress + motionOffset.y;
+
+            const alpha = 180 + 60 * travelProgress;
+
+            tex.fill(255, alpha);
+            tex.ellipse(x, y, circleRadius * 2, circleRadius * 2);
         }
 
-        tex3d.translate(camX, camY, camZ);
-        tex3d.rotateX(camAngleX);
-        tex3d.rotateY(camAngleY);
-        tex3d.rotateZ(camAngleZ);
-
-
-        // 4. オブジェクト描画ループ
-
-        const radius = p.min(tex3d.width, tex3d.height) * 0.5 * radiusScl;
-        const boxSizeBase = (radius * 0.5) / boxNum;
-
-        for (let i = 0; i < boxNum; i++) {
-
-            // 4-A. 座標計算 (P3: オブジェクトパターン)
-            let x = 0;
-            let y = 0;
-            let z = 0;
-            const angle = p.map(i, 0, boxNum, 0, p.TAU) + currentBeat * 0.1;
-
-            switch (objPatternNum) {
-                case 0: // Circle/Helix Pattern
-                    x = p.cos(angle) * radius;
-                    y = p.sin(angle) * radius;
-                    z = p.sin(angle) * radius * 0.5;
-                    break;
-                case 1: // Lissajous/Complex Wave 1
-                    x = p.sin(angle * 1.45) * radius;
-                    y = p.sin(angle * 1.81) * radius * 0.5;
-                    z = p.sin(angle * 1.12) * radius * 0.3;
-                    break;
-                case 2: // Lissajous/Complex Wave 2 (Phase Shifted)
-                    x = p.sin(angle * 1.45 + 0.34179) * radius * 1.3;
-                    y = p.sin(angle * 1.10 + 1.30981) * radius * 0.5;
-                    z = p.sin(angle * 1.81 + 0.49814) * radius * 0.3;
-                    break;
-                case 3: // Random Scatter
-                    x = p.random(-1, 1) * radius;
-                    y = p.random(-1, 1) * radius;
-                    z = p.random(-1, 1) * radius;
-                    break;
-            }
-
-            // 4-B. アニメーションスケールの計算 (P7: ランダムスケール)
-            const isFlick = (p.random() < 0.1 && scaleMode === "randomScale");
-            const sclX = isFlick ? Easing.easeOutQuad(p.fract(currentBeat)) + 1.0 : 1.0;
-            const size = boxSizeBase * boxScl;
-
-
-            // 4-C. 箱の描画と回転 (P1: Box Rotate Mode)
-            tex3d.push();
-            tex3d.translate(x, y, z);
-
-            switch (boxRotateMode) {
-                case "rotateX": tex3d.rotateX(currentBeat); break;
-                case "rotateY": tex3d.rotateY(currentBeat); break;
-                case "rotateZ": tex3d.rotateZ(currentBeat); break;
-                case "rotateXY": tex3d.rotateX(currentBeat); tex3d.rotateY(currentBeat); break;
-                case "rotateXZ": tex3d.rotateX(currentBeat); tex3d.rotateZ(currentBeat); break;
-                case "rotateYZ": tex3d.rotateY(currentBeat); tex3d.rotateZ(currentBeat); break;
-                case "None": break;
-            }
-
-            // 描画スタイル設定 (モノクローム)
-            tex3d.noFill();
-            tex3d.stroke(255);
-
-            // 描画モード (P6: 2D/3D) とアニメーションスケールの適用
-            if (renderMode === "2d") {
-                tex3d.scale(sclX, 1, 0);
-            } else {
-                tex3d.scale(sclX, 1, 1);
-            }
-
-            // 実際の描画
-            tex3d.box(size);
-            tex3d.pop();
-        }
-
-        // 5. 描画コンテキストの終了とテクスチャ合成
-        tex3d.pop();
-
-        // 3D描画結果を2D中間テクスチャ (tex) に貼り付け
-        tex.image(tex3d, 0, 0, tex.width, tex.height);
-
-        // 最終コンテキストのリセット
         tex.pop();
+    }
+
+    private countSizeAttenuation(circleCount: number): number {
+        if (circleCount <= 0) {
+            return 1;
+        }
+
+        const baseCount = this.circleCountOptions[0];
+        const ratio = Math.min(1, baseCount / circleCount);
+
+        return Math.pow(ratio, 0.55);
+    }
+
+    private destinationPoint(mode: DestinationMode, radius: number, angle: number, ratio: number, index: number): { x: number; y: number } {
+        switch (mode) {
+            case "line": {
+                const offset = (ratio - 0.5) * 2;
+                return { x: offset * radius, y: 0 };
+            }
+            case "random": {
+                const seed = Math.sin(index * 127.31) * 43758.5453;
+                const randAngle = (seed - Math.floor(seed)) * Math.PI * 2;
+                const randRadius = radius * (0.65 + 0.35 * ((Math.cos(index * 53.17) + 1) * 0.5));
+                return {
+                    x: Math.cos(randAngle) * randRadius,
+                    y: Math.sin(randAngle) * randRadius,
+                };
+            }
+            case "dual": {
+                const ring = index % 2 === 0 ? 0.6 : 1;
+                return {
+                    x: Math.cos(angle) * radius * ring,
+                    y: Math.sin(angle) * radius * ring,
+                };
+            }
+            case "ring":
+            default:
+                return {
+                    x: Math.cos(angle) * radius,
+                    y: Math.sin(angle) * radius,
+                };
+        }
+    }
+
+    private travelProgress(mode: ReturnMode, phase: number): number {
+        switch (mode) {
+            case "bounce": {
+                const folded = phase < 0.5 ? phase * 2 : (1 - phase) * 2;
+                return Easing.easeInOutCubic(folded);
+            }
+            case "linger": {
+                if (phase < 0.4) {
+                    return Easing.easeOutCubic(phase / 0.4);
+                }
+                return 1 - 0.15 * Easing.easeInCubic((phase - 0.4) / 0.6);
+            }
+            case "reverse": {
+                const direction = phase < 0.5 ? phase * 2 : (phase - 0.5) * 2;
+                return Easing.easeInOutCubic((phase < 0.5 ? direction : 1 - direction));
+            }
+            case "oneway":
+            default:
+                return Easing.easeOutCubic(phase);
+        }
+    }
+
+    private motionOffset(profile: MotionProfile, phase: number, index: number, scale: number): { x: number; y: number } {
+        switch (profile) {
+            case "wave": {
+                const amp = scale * 0.025;
+                const wave = Math.sin((phase + index * 0.1) * Math.PI * 2);
+                return { x: wave * amp, y: Math.cos((phase * 0.5 + index * 0.05) * Math.PI * 2) * amp };
+            }
+            case "zigzag": {
+                const ampX = scale * 0.02;
+                const ampY = scale * 0.015;
+                const zig = ((phase * 4 + index * 0.2) % 2) - 1;
+                return { x: Math.sign(zig) * ampX, y: zig * ampY };
+            }
+            case "stutter": {
+                const step = Math.floor((phase * 4) % 4) / 3;
+                const jitter = Math.sin(index * 17.3) * scale * 0.012;
+                return { x: jitter * step, y: -jitter * (1 - step) };
+            }
+            case "smooth":
+            default:
+                return { x: 0, y: 0 };
+        }
+    }
+
+    private computePhaseOffset(mode: PhaseMode, index: number, count: number): number {
+        switch (mode) {
+            case "spread":
+                return (index / Math.max(1, count)) * 0.5;
+            case "cascade":
+                return (index / Math.max(1, count - 1)) * 0.25;
+            case "random":
+                return ((Math.sin(index * 91.7) + 1) * 0.5) * 0.5;
+            case "uniform":
+            default:
+                return 0;
+        }
+    }
+
+    private mod1(value: number): number {
+        return ((value % 1) + 1) % 1;
     }
 }
