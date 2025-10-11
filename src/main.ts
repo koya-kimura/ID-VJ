@@ -127,7 +127,7 @@ const sketch = (p: p5) => {
   p.keyPressed = () => {
     // スペースキーでフルスクリーン切り替え
     if (p.keyCode === 32) {
-      p.fullscreen(!p.fullscreen());
+      p.fullscreen(true);
     }
     // エンターキーでタップテンポ
     else if (p.keyCode === 13) {
