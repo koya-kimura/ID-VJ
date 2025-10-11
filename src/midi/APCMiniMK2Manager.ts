@@ -66,6 +66,17 @@ const RANDOM_ON_COLOR = 45; // 紫
 // デフォルトのアクティブ色（フォールバック）
 const DEFAULT_ACTIVE_COLOR = 41;
 
+const KEYBOARD_FADER_KEYS = ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o'] as const;
+const KEYBOARD_GRID_KEYS = ['z', 'x', 'c', 'v', 'b', 'n', 'm', ','] as const;
+const KEYBOARD_SCENE_FUNCTION_KEYS = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'] as const;
+const KEYBOARD_SCENE_RANDOM_FUNCTION_KEY = 'F9';
+const KEYBOARD_SCENE_SELECT_KEYS = ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k'] as const;
+const KEYBOARD_SCENE_RANDOM_KEY = 'l';
+const KEYBOARD_SCENE_PREV_KEY = '[';
+const KEYBOARD_SCENE_NEXT_KEY = ']';
+const FALLBACK_FADER_STEP = 0.05;
+const FALLBACK_FINE_MODIFIER = 0.01;
+
 
 /**
  * グリッドパッドのパラメーター状態を定義するインターフェース
@@ -93,6 +104,9 @@ export class APCMiniMK2Manager extends MIDIManager {
     private faderRandomStates: FaderRandomState[];
     private readonly randomLowDurationRange = { min: 1200, max: 4000 };
     private readonly randomHighDurationRange = { min: 80, max: 220 };
+    private keyboardFallbackActive: boolean = false;
+    private keyboardFallbackNoticeShown: boolean = false;
+    private readonly handleKeyDownRef: (event: KeyboardEvent) => void;
 
     /** グリッドパッドの全状態を保持 [sceneIndex][columnIndex] */
     public gridRadioState: GridParameterState[][];
@@ -125,6 +139,15 @@ export class APCMiniMK2Manager extends MIDIManager {
 
         this.sideButtonToggleState[this.currentSceneIndex] = 1;
         this.onMidiMessageCallback = this.handleMIDIMessage.bind(this);
+        this.handleKeyDownRef = this.handleFallbackKeyDown.bind(this);
+    }
+
+    protected onMidiAvailabilityChanged(available: boolean): void {
+        if (!available) {
+            this.enableKeyboardFallback();
+        } else {
+            this.disableKeyboardFallback();
+        }
     }
 
     public isRandomSceneModeActive(): boolean {
@@ -202,12 +225,171 @@ export class APCMiniMK2Manager extends MIDIManager {
         this.midiOutputSendControls();
     }
 
+    public isKeyboardFallbackActive(): boolean {
+        return this.keyboardFallbackActive;
+    }
+
     /**
      * 簡易な擬似乱数生成
      */
     private simplePseudoRandom(seed: number): number {
         const x = Math.sin(seed * 99999 + 1) * 10000;
         return x - Math.floor(x);
+    }
+
+    private enableKeyboardFallback(): void {
+        if (this.keyboardFallbackActive || typeof window === 'undefined') {
+            return;
+        }
+
+        this.keyboardFallbackActive = true;
+        window.addEventListener('keydown', this.handleKeyDownRef, { passive: false });
+
+        if (!this.keyboardFallbackNoticeShown) {
+            console.info('[APCMiniMK2Manager] MIDIデバイスが見つからなかったため、キーボードフォールバックを有効化しました。');
+            console.info('[APCMiniMK2Manager] フェーダー: Q~O (Shiftで減少 / Ctrlで微調整)。列調整: Z~,(Shiftで減少 / Optionでランダム切替)。シーン選択: A~K (左→右)、[/] で前後移動、L でランダム切替。F1~F9 も引き続き使用可能です。');
+            this.keyboardFallbackNoticeShown = true;
+        }
+    }
+
+    private disableKeyboardFallback(): void {
+        if (!this.keyboardFallbackActive || typeof window === 'undefined') {
+            return;
+        }
+
+        window.removeEventListener('keydown', this.handleKeyDownRef);
+        this.keyboardFallbackActive = false;
+    }
+
+    private handleFallbackKeyDown(event: KeyboardEvent): void {
+        if (!this.keyboardFallbackActive) {
+            return;
+        }
+
+        if (this.handleSceneSelectionFallback(event)) {
+            event.preventDefault();
+            return;
+        }
+
+        const lowerKey = event.key.toLowerCase();
+
+        if (this.handleFaderFallback(lowerKey, event)) {
+            event.preventDefault();
+            return;
+        }
+
+        if (this.handleGridFallback(lowerKey, event)) {
+            event.preventDefault();
+        }
+    }
+
+    private handleSceneSelectionFallback(event: KeyboardEvent): boolean {
+        const lowerKey = event.key.toLowerCase();
+
+        const directIndex = KEYBOARD_SCENE_SELECT_KEYS.indexOf(lowerKey as typeof KEYBOARD_SCENE_SELECT_KEYS[number]);
+        if (directIndex !== -1) {
+            this.selectScene(directIndex);
+            return true;
+        }
+
+        if (lowerKey === KEYBOARD_SCENE_RANDOM_KEY) {
+            this.randomSceneMode = !this.randomSceneMode;
+            return true;
+        }
+
+        if (event.key === KEYBOARD_SCENE_PREV_KEY) {
+            const prevIndex = (this.currentSceneIndex - 1 + GRID_COLS) % GRID_COLS;
+            this.selectScene(prevIndex);
+            return true;
+        }
+
+        if (event.key === KEYBOARD_SCENE_NEXT_KEY) {
+            const nextIndex = (this.currentSceneIndex + 1) % GRID_COLS;
+            this.selectScene(nextIndex);
+            return true;
+        }
+
+        if (KEYBOARD_SCENE_FUNCTION_KEYS.includes(event.key as typeof KEYBOARD_SCENE_FUNCTION_KEYS[number])) {
+            const index = parseInt(event.key.replace('F', ''), 10) - 1;
+            if (!Number.isNaN(index) && index >= 0 && index < GRID_COLS) {
+                this.selectScene(index);
+                return true;
+            }
+        }
+
+        if (event.key === KEYBOARD_SCENE_RANDOM_FUNCTION_KEY) {
+            this.randomSceneMode = !this.randomSceneMode;
+            return true;
+        }
+
+        return false;
+    }
+
+    private handleFaderFallback(key: string, event: KeyboardEvent): boolean {
+        const index = KEYBOARD_FADER_KEYS.indexOf(key as typeof KEYBOARD_FADER_KEYS[number]);
+        if (index === -1) {
+            return false;
+        }
+
+        const direction = event.shiftKey ? -1 : 1;
+        const step = event.ctrlKey || event.metaKey ? FALLBACK_FINE_MODIFIER : FALLBACK_FADER_STEP;
+        const delta = direction * step;
+
+        this.faderButtonToggleState[index] = 0;
+        this.deactivateRandomFader(index);
+
+        const nextValue = this.clamp01(this.faderValuesPrev[index] + delta);
+        this.faderValuesPrev[index] = nextValue;
+        this.faderValues[index] = nextValue;
+        return true;
+    }
+
+    private handleGridFallback(key: string, event: KeyboardEvent): boolean {
+        const columnIndex = KEYBOARD_GRID_KEYS.indexOf(key as typeof KEYBOARD_GRID_KEYS[number]);
+        if (columnIndex === -1) {
+            return false;
+        }
+
+        const param = this.gridRadioState[this.currentSceneIndex][columnIndex];
+
+        if (event.altKey) {
+            param.isRandom = !param.isRandom;
+            if (!param.isRandom) {
+                param.selectedRow = this.clampGridSelection(param.selectedRow, param.maxOptions);
+            } else {
+                param.randomValue = Math.floor(Math.random() * param.maxOptions);
+            }
+            return true;
+        }
+
+        const direction = event.shiftKey ? -1 : 1;
+        param.isRandom = false;
+        const nextRow = this.clampGridSelection(param.selectedRow + direction, param.maxOptions);
+        if (nextRow !== param.selectedRow) {
+            param.selectedRow = nextRow;
+        }
+        return true;
+    }
+
+    private clampGridSelection(value: number, maxOptions: number): number {
+        const maxIndex = Math.max(0, Math.min(7, maxOptions - 1));
+        if (value < 0) {
+            return 0;
+        }
+        if (value > maxIndex) {
+            return maxIndex;
+        }
+        return value;
+    }
+
+    private clamp01(value: number): number {
+        if (value < 0) {
+            return 0;
+        }
+        if (value > 1) {
+            return 1;
+        }
+        return value;
     }
 
     /**

@@ -1,7 +1,7 @@
 // src/ui/UI_None.ts
 
 import p5 from 'p5';
-import type { IUIOverlay } from './IUIOverlay';
+import type { IUIOverlay } from '../core/IUIOverlay';
 import { APCMiniMK2Manager } from '../midi/APCMiniMK2Manager';
 import { BPMManager } from '../rhythm/BPMManager';
 

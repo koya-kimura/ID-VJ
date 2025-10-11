@@ -1,37 +1,29 @@
-// src/scenes/Scene7.ts
+// src/scenes/BinaryParticleLoomScene.ts
 
 import p5 from 'p5';
-import type { IScene } from "./IScene";
+import type { IScene } from '../core/IScene';
 import { APCMiniMK2Manager } from '../midi/APCMiniMK2Manager';
 import { Easing } from '../utils/easing';
 
 type EaseFn = (t: number) => number;
 
+type LayoutMode = 'grid' | 'rings' | 'spiral' | 'bands' | 'scatter';
+type MotionMode = 'breath' | 'swirl' | 'lattice' | 'noise' | 'pulse';
+
 /**
- * Scene7: Binary Particle Loom (移設)
- * 旧Scene8の粒子表現をベースに、全てのパラメータを選択肢ドリブンに再構成。
+ * BinaryParticleLoomScene
+ * -----------------------
+ * グリッド状の粒子群を複数レイヤーで構成し、レイアウト／モーションを切り替えて織物のような流れを描く。
  */
-export class Scene7 implements IScene {
-    public name: string = "Scene 7: Binary Particle Loom";
+export class BinaryParticleLoomScene implements IScene {
+    public name: string = 'Binary Particle Loom';
 
     private readonly gridOptions = [6, 10, 14, 18];
     private readonly sizeOptions = [0.75, 1.0, 1.35, 1.8];
     private readonly travelOptions = [0.6, 0.85, 1.1, 1.45];
     private readonly speedOptions = [0.1, 0.2, 0.4, 0.7];
-    private readonly layoutModes = [
-        "grid",
-        "rings",
-        "spiral",
-        "bands",
-        "scatter",
-    ] as const;
-    private readonly motionModes = [
-        "breath",
-        "swirl",
-        "lattice",
-        "noise",
-        "pulse",
-    ] as const;
+    private readonly layoutModes: readonly LayoutMode[] = ['grid', 'rings', 'spiral', 'bands', 'scatter'];
+    private readonly motionModes: readonly MotionMode[] = ['breath', 'swirl', 'lattice', 'noise', 'pulse'];
     private readonly layerPackages = [
         { layers: 1, trailAlpha: 16 },
         { layers: 2, trailAlpha: 40 },
@@ -45,7 +37,7 @@ export class Scene7 implements IScene {
         (t) => 1 - Easing.easeInCirc(Math.abs(0.5 - t) * 2),
     ];
 
-    private maxOptions: number[] = [
+    private readonly maxOptions: number[] = [
         this.gridOptions.length,
         this.sizeOptions.length,
         this.travelOptions.length,
@@ -108,9 +100,11 @@ export class Scene7 implements IScene {
 
                     const dist = Math.sqrt(u * u + v * v);
                     const microBeat = this.mod1(time * 0.45 + particleIndex * 0.003 + layerRatio * 0.07);
-                    const alpha = this.particleAlpha(layout, particleIndex, time, pulseValue, dist, travel, layerRatio) * (0.75 + 0.25 * this.bounce(microBeat));
+                    const alpha = this.particleAlpha(layout, particleIndex, time, pulseValue, dist, travel, layerRatio)
+                        * (0.75 + 0.25 * this.bounce(microBeat));
                     const sizeEnvelope = this.sizeEnvelope(pulseValue, travel, this.mod1(beatPhase + layerRatio * 0.12), layerRatio);
-                    const size = sizeBase * sizeEnvelope * this.sizeMod(layout, dist, layerRatio, travel) * (0.8 + 0.2 * this.bounce(this.mod1(microBeat + 0.35)));
+                    const size = sizeBase * sizeEnvelope * this.sizeMod(layout, dist, layerRatio, travel)
+                        * (0.8 + 0.2 * this.bounce(this.mod1(microBeat + 0.35)));
 
                     tex.fill(255, alpha);
                     tex.ellipse(px, py, size, size);
@@ -124,7 +118,7 @@ export class Scene7 implements IScene {
     }
 
     private layoutPosition(
-        mode: typeof this.layoutModes[number],
+        mode: LayoutMode,
         u: number,
         v: number,
         minDim: number,
@@ -138,26 +132,27 @@ export class Scene7 implements IScene {
         const dist = Math.sqrt(u * u + v * v);
 
         switch (mode) {
-            case "rings":
+            case 'rings':
                 return {
                     x: Math.cos(angle) * dist * minDim * (0.65 + 0.3 * layerRatio * travel),
                     y: Math.sin(angle) * dist * minDim * (0.65 + 0.3 * layerRatio * travel),
                 };
-            case "spiral":
+            case 'spiral':
                 return {
                     x: Math.cos(angle + layerRatio * Math.PI * 2 * travel) * dist * minDim,
                     y: Math.sin(angle + layerRatio * Math.PI * 2 * travel) * dist * minDim,
                 };
-            case "bands":
+            case 'bands':
                 return {
                     x: baseX * (0.45 + 0.55 * Math.sign(Math.sin(time + u * Math.PI * 8)) * travel),
                     y: baseY * (0.45 + 0.55 * Math.sign(Math.cos(time * 0.8 + v * Math.PI * 8)) * travel),
                 };
-            case "scatter":
+            case 'scatter':
                 return {
                     x: baseX + Math.sin(u * 50 + layerRatio * 13) * minDim * 0.05 * travel,
                     y: baseY + Math.sin(v * 50 + layerRatio * 19) * minDim * 0.05 * travel,
                 };
+            case 'grid':
             default:
                 return { x: baseX, y: baseY };
         }
@@ -165,7 +160,7 @@ export class Scene7 implements IScene {
 
     private motionOffset(
         p: p5,
-        mode: typeof this.motionModes[number],
+        mode: MotionMode,
         u: number,
         v: number,
         time: number,
@@ -176,32 +171,35 @@ export class Scene7 implements IScene {
     ): { x: number; y: number } {
         const amplitude = step * travel;
         switch (mode) {
-            case "breath":
+            case 'breath': {
                 const breath = Math.sin(time * 0.6 + layerPhase) * 0.3;
                 return { x: u * amplitude * 6 * breath, y: v * amplitude * 6 * breath };
-            case "swirl":
+            }
+            case 'swirl':
                 return {
                     x: -v * amplitude * 6 * Math.sin(time + layerPhase),
                     y: u * amplitude * 6 * Math.sin(time + layerPhase),
                 };
-            case "lattice":
+            case 'lattice':
                 return {
                     x: Math.sin(time + u * Math.PI * 4 + layerPhase) * amplitude * 2.6,
                     y: Math.sin(time * 1.3 + v * Math.PI * 4 - layerPhase) * amplitude * 2.6,
                 };
-            case "noise":
+            case 'noise':
                 return {
                     x: (p.noise(index * 17, time * 0.15) - 0.5) * amplitude * 3.2,
                     y: (p.noise(index * 41, time * 0.15) - 0.5) * amplitude * 3.2,
                 };
-            default: // pulse
+            case 'pulse':
+            default: {
                 const pulseMag = Math.sin(time * 0.7 + index * 0.02 + layerPhase);
                 return { x: pulseMag * amplitude * 3.4, y: pulseMag * amplitude * 1.8 };
+            }
         }
     }
 
     private particleAlpha(
-        layout: typeof this.layoutModes[number],
+        layout: LayoutMode,
         index: number,
         time: number,
         pulseValue: number,
@@ -209,9 +207,9 @@ export class Scene7 implements IScene {
         travel: number,
         layerRatio: number,
     ): number {
-        const base = layout === "bands" ? 170 : 210;
+        const base = layout === 'bands' ? 170 : 210;
         const modulation = 0.45 + 0.55 * Math.abs(Math.sin(time + index * 0.015 * travel));
-        const radial = layout === "rings" ? (0.45 + 0.55 * (1 - dist)) : 1;
+        const radial = layout === 'rings' ? 0.45 + 0.55 * (1 - dist) : 1;
         const layerFade = 0.6 + 0.4 * (1 - layerRatio * 0.6);
         return Math.min(255, base * modulation * pulseValue * radial * layerFade);
     }
@@ -222,16 +220,17 @@ export class Scene7 implements IScene {
         return beatPulse * (0.9 + 0.3 * travelPulse);
     }
 
-    private sizeMod(layout: typeof this.layoutModes[number], dist: number, layerRatio: number, travel: number): number {
+    private sizeMod(layout: LayoutMode, dist: number, layerRatio: number, travel: number): number {
         switch (layout) {
-            case "rings":
+            case 'rings':
                 return 0.55 + 0.85 * (1 - dist) * (0.6 + 0.4 * travel);
-            case "spiral":
+            case 'spiral':
                 return 0.7 + 0.6 * layerRatio * (0.8 + 0.2 * travel);
-            case "bands":
+            case 'bands':
                 return 0.7 + 0.5 * Math.abs(Math.sin(dist * Math.PI * 4)) * (0.8 + 0.2 * travel);
-            case "scatter":
+            case 'scatter':
                 return 0.9 + 0.3 * layerRatio * (0.7 + 0.3 * travel);
+            case 'grid':
             default:
                 return 1.0;
         }
@@ -244,7 +243,7 @@ export class Scene7 implements IScene {
         time: number,
         index: number,
         step: number,
-        layout: typeof this.layoutModes[number],
+        layout: LayoutMode,
         travel: number,
     ): { x: number; y: number } {
         const beat = this.mod1(time * 0.25 + index * 0.002 + layerRatio * 0.13);
@@ -252,26 +251,27 @@ export class Scene7 implements IScene {
         const vertical = (this.dualEase(beat) - 0.5) * step * 1.3 * travel;
 
         switch (layout) {
-            case "rings":
+            case 'rings':
                 return {
                     x: lateral * (0.6 + layerRatio * 0.7) * Math.cos(time + index * 0.01),
                     y: vertical * (0.6 + layerRatio * 0.4) * Math.sin(time * 0.8 + index * 0.015),
                 };
-            case "spiral":
+            case 'spiral':
                 return {
                     x: lateral * Math.cos(time + layerRatio * Math.PI),
                     y: vertical * Math.sin(time * 1.1 + layerRatio * Math.PI),
                 };
-            case "bands":
+            case 'bands':
                 return {
                     x: lateral * Math.sin(v * Math.PI * 6 + time),
                     y: vertical * Math.cos(u * Math.PI * 6 - time * 0.8),
                 };
-            case "scatter":
+            case 'scatter':
                 return {
                     x: lateral * (Math.sin(index * 0.17) + 0.5),
                     y: vertical * (Math.cos(index * 0.23) + 0.5),
                 };
+            case 'grid':
             default:
                 return { x: lateral, y: vertical };
         }

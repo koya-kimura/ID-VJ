@@ -1,15 +1,15 @@
-// src/scenes/Scene1.ts
+// src/scenes/OrbitalPatternFieldScene.ts
 
 import p5 from 'p5';
-import type { IScene } from "./IScene";
+import type { IScene } from '../core/IScene';
 import { APCMiniMK2Manager } from '../midi/APCMiniMK2Manager';
 import { Easing } from '../utils/easing';
 
-type MotionMode = "sizeBound" | "axisWarp" | "translate" | "orbit";
-type PatternShape = "circle" | "star";
-type PatternPosition = "center" | "random";
-type StrokeMode = "thin" | "thick" | "random";
-type FillMode = "none" | "fill" | "fillAlpha" | "rand";
+type MotionMode = 'sizeBound' | 'axisWarp' | 'translate' | 'orbit';
+type PatternShape = 'circle' | 'star';
+type PatternPosition = 'center' | 'random';
+type StrokeMode = 'thin' | 'thick' | 'random';
+type FillMode = 'none' | 'fill' | 'fillAlpha' | 'rand';
 
 interface PatternPackage {
     shape: PatternShape;
@@ -17,25 +17,27 @@ interface PatternPackage {
 }
 
 /**
- * Scene 1: 3D Object Field
- * WorkingScene の内容を移植し、パラメータ体系に合わせた基礎シーン。
+ * OrbitalPatternFieldScene
+ * -----------------------
+ * 放射状のポリゴン／スターを複数組み合わせたフィールドを描く基本シーン。
+ * パラメータにより形状、モーション、ノイズ量、塗りモードなどが切り替わる。
  */
-export class Scene1 implements IScene {
-    public name: string = "Scene 1: 3D Object Field";
+export class OrbitalPatternFieldScene implements IScene {
+    public name: string = 'Orbital Pattern Field';
 
     private readonly shapeCountOptions = [1, 2, 4, 8];
     private readonly vertexDetailOptions = [2, 3, 4, 5];
     private readonly radiusScaleOptions = [0.28, 0.36, 0.46, 0.58];
-    private readonly motionModes: MotionMode[] = ["sizeBound", "axisWarp", "translate", "orbit"];
+    private readonly motionModes: MotionMode[] = ['sizeBound', 'axisWarp', 'translate', 'orbit'];
     private readonly noiseAmountOptions = [0.0, 0.18, 0.36, 0.6];
     private readonly patternPackages: PatternPackage[] = [
-        { shape: "circle", position: "center" },
-        { shape: "circle", position: "random" },
-        { shape: "star", position: "center" },
-        { shape: "star", position: "random" },
+        { shape: 'circle', position: 'center' },
+        { shape: 'circle', position: 'random' },
+        { shape: 'star', position: 'center' },
+        { shape: 'star', position: 'random' },
     ];
-    private readonly strokeModes: StrokeMode[] = ["thin", "thick", "random"];
-    private readonly fillModes: FillMode[] = ["none", "fill", "fillAlpha", "rand"];
+    private readonly strokeModes: StrokeMode[] = ['thin', 'thick', 'random'];
+    private readonly fillModes: FillMode[] = ['none', 'fill', 'fillAlpha', 'rand'];
 
     private readonly maxOptions: number[] = [
         this.shapeCountOptions.length,
@@ -61,8 +63,8 @@ export class Scene1 implements IScene {
         const motionMode = this.motionModes[selection[3]];
         const noiseAmount = this.noiseAmountOptions[selection[4]];
         const pattern = this.patternPackages[selection[5]];
-        const strokeMode = this.strokeModes[selection[6]] ?? "random";
-        const fillMode = this.fillModes[selection[7]] ?? "none";
+        const strokeMode = this.strokeModes[selection[6]] ?? 'random';
+        const fillMode = this.fillModes[selection[7]] ?? 'none';
 
         const vertexNum = Math.pow(2, vertexExponent) + 1;
         const minDim = Math.min(tex.width, tex.height);
@@ -82,7 +84,7 @@ export class Scene1 implements IScene {
             let x = 0;
             let y = 0;
             let rotation = 0;
-            if (pattern.position === "random") {
+            if (pattern.position === 'random') {
                 x = p.random(-tex.width * 0.45, tex.width * 0.45);
                 y = p.random(-tex.height * 0.45, tex.height * 0.45);
                 rotation = p.random(p.TWO_PI);
@@ -100,7 +102,7 @@ export class Scene1 implements IScene {
 
             tex.beginShape();
             for (let i = 0; i < vertexNum; i++) {
-                const index = pattern.shape === "circle" ? i : (i * 2) % vertexNum;
+                const index = pattern.shape === 'circle' ? i : (i * 2) % vertexNum;
                 const angle = (p.TWO_PI / vertexNum) * index;
                 const wobble = noiseAmount === 0
                     ? 0
@@ -119,11 +121,11 @@ export class Scene1 implements IScene {
 
     private computeStrokeWeight(p: p5, mode: StrokeMode, minDim: number): number {
         switch (mode) {
-            case "thin":
+            case 'thin':
                 return minDim * 0.004;
-            case "thick":
+            case 'thick':
                 return minDim * 0.018;
-            case "random":
+            case 'random':
             default:
                 return minDim * p.random(0.005, 0.02);
         }
@@ -132,15 +134,15 @@ export class Scene1 implements IScene {
     private applyFillMode(tex: p5.Graphics, mode: FillMode, beat: number): void {
         const oscillation = Easing.easeOutCubic(Math.abs((beat + 1) % 2 - 1));
         switch (mode) {
-            case "fill":
+            case 'fill':
                 tex.fill(255);
                 tex.noStroke();
                 break;
-            case "fillAlpha":
+            case 'fillAlpha':
                 tex.fill(255, 40 + 180 * oscillation);
                 tex.noStroke();
                 break;
-            case "rand":
+            case 'rand':
                 if (Math.random() > 0.5) {
                     tex.fill(255);
                     tex.noStroke();
@@ -148,7 +150,7 @@ export class Scene1 implements IScene {
                     tex.noFill();
                 }
                 break;
-            case "none":
+            case 'none':
             default:
                 tex.noFill();
                 break;
@@ -159,19 +161,19 @@ export class Scene1 implements IScene {
         const beatPhase = Math.abs((beat % 1) - 0.5) * 2;
         const eased = Easing.easeOutCubic(beatPhase);
         switch (mode) {
-            case "sizeBound": {
+            case 'sizeBound': {
                 const scale = 0.55 + 0.55 * Easing.easeInOutCubic(beatPhase);
                 tex.scale(scale);
                 break;
             }
-            case "axisWarp":
+            case 'axisWarp':
                 tex.scale(0.65 + 0.85 * eased, 1.05 - 0.25 * eased);
                 break;
-            case "translate":
+            case 'translate':
                 tex.translate((eased - 0.5) * minDim * 0.35, 0);
                 tex.scale(0.85 + 0.35 * eased, 1.0 - 0.25 * eased);
                 break;
-            case "orbit":
+            case 'orbit':
                 tex.rotate(beat * 0.35 + ringRatio * 0.6);
                 break;
         }

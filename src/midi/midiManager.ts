@@ -52,6 +52,7 @@ export class MIDIManager {
         if (!input) {
             console.log("MIDI device not found");
             this.midiSuccess = false;
+            this.onMidiAvailabilityChanged(false);
             return;
         }
 
@@ -68,13 +69,16 @@ export class MIDIManager {
                 this.midiOutput = outputs[0];
                 console.log("MIDI output port:", this.midiOutput.name);
                 this.midiSuccess = true;
+                this.onMidiAvailabilityChanged(true);
             } else {
                 console.log("MIDI output port not found");
                 this.midiSuccess = false;
+                this.onMidiAvailabilityChanged(false);
             }
         } catch (error) {
             console.error("MIDI device access error:", error);
             this.midiSuccess = false;
+            this.onMidiAvailabilityChanged(false);
         }
     }
 
@@ -85,6 +89,7 @@ export class MIDIManager {
     private onMIDIFailure(error: any): void {
         console.error("MIDI access failed. -", error);
         this.midiSuccess = false;
+        this.onMidiAvailabilityChanged(false);
     }
 
     /**
@@ -106,5 +111,14 @@ export class MIDIManager {
         if (this.midiSuccess && this.midiOutput) {
             this.midiOutput.send(message);
         }
+    }
+
+    /**
+     * MIDIデバイスの利用可否が変化した際に呼び出されるフック。
+     * サブクラスでオーバーライドすることでフォールバック処理などを実装できる。
+     */
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    protected onMidiAvailabilityChanged(_available: boolean): void {
+        // Default: noop
     }
 }

@@ -1,10 +1,17 @@
+// src/ui/CameraFrameOverlay.ts
+
 import p5 from 'p5';
-import type { IUIOverlay } from './IUIOverlay';
+import type { IUIOverlay } from '../core/IUIOverlay';
 import { APCMiniMK2Manager } from '../midi/APCMiniMK2Manager';
 import { BPMManager } from '../rhythm/BPMManager';
 
-export class UI_Pattern3 implements IUIOverlay {
-    public name: string = 'Pattern 3: Camera Frame';
+/**
+ * CameraFrameOverlay
+ * ------------------
+ * 撮影用フレームや計測線、RECインジケーターを表示するカメラHUD。
+ */
+export class CameraFrameOverlay implements IUIOverlay {
+    public name: string = 'Camera Frame Overlay';
 
     public draw(p: p5, tex: p5.Graphics | null, midiManager: APCMiniMK2Manager, bpmManager: BPMManager, _currentBeat: number): void {
         if (!tex) {
@@ -27,7 +34,6 @@ export class UI_Pattern3 implements IUIOverlay {
         tex.rectMode(p.CORNER);
         tex.rect(margin, margin, width - margin * 2, height - margin * 2);
 
-        // Corner brackets
         tex.strokeWeight(frameThickness * 1.4);
         const corners = [
             { x: margin, y: margin, dx: 1, dy: 1 },
@@ -40,7 +46,6 @@ export class UI_Pattern3 implements IUIOverlay {
             tex.line(x, y, x, y + cornerLength * dy);
         });
 
-        // Safe area rectangle
         tex.strokeWeight(frameThickness * 0.6);
         tex.rect(
             margin + safeMargin,
@@ -49,36 +54,33 @@ export class UI_Pattern3 implements IUIOverlay {
             height - (margin + safeMargin) * 2,
         );
 
-        // Center crosshair
         const centerX = width / 2;
         const centerY = height / 2;
-    const crossLength = Math.min(width, height) * 0.08;
-    tex.strokeWeight(frameThickness * 0.7);
+        const crossLength = Math.min(width, height) * 0.08;
+        tex.strokeWeight(frameThickness * 0.7);
         tex.line(centerX - crossLength, centerY, centerX + crossLength, centerY);
         tex.line(centerX, centerY - crossLength, centerX, centerY + crossLength);
-    tex.strokeWeight(frameThickness * 0.3);
+        tex.strokeWeight(frameThickness * 0.3);
 
-        // Top HUD information
         const hudY = margin * 0.6;
         const hudSpacing = width * 0.1;
         tex.textAlign(p.LEFT, p.CENTER);
         tex.fill(255);
         tex.noStroke();
-    tex.textSize(height * 0.022);
+        tex.textSize(height * 0.022);
 
-    const preciseBeat = bpmManager.getBeat();
-    const sceneLabel = `SCN ${midiManager.currentSceneIndex + 1}`;
-    const bpmLabel = `BPM ${Math.round(bpmManager.getBPM())}`;
-    const beatLabel = `BEAT ${preciseBeat.toFixed(1)}`;
+        const preciseBeat = bpmManager.getBeat();
+        const sceneLabel = `SCN ${midiManager.currentSceneIndex + 1}`;
+        const bpmLabel = `BPM ${Math.round(bpmManager.getBPM())}`;
+        const beatLabel = `BEAT ${preciseBeat.toFixed(1)}`;
 
         tex.text(sceneLabel, margin, hudY);
         tex.text(bpmLabel, margin + hudSpacing, hudY);
         tex.text(beatLabel, margin + hudSpacing * 2, hudY);
 
-        // REC indicator
-    const recRadius = height * 0.015;
-    const beatPhase = ((preciseBeat % 1) + 1) % 1;
-    const recAlpha = beatPhase < 0.5 ? 255 : 50;
+        const recRadius = height * 0.015;
+        const beatPhase = ((preciseBeat % 1) + 1) % 1;
+        const recAlpha = beatPhase < 0.5 ? 255 : 50;
         tex.fill(255, 0, 0, recAlpha);
         tex.circle(width - margin - hudSpacing * 0.4, hudY, recRadius * 2);
         tex.fill(255);
@@ -86,7 +88,6 @@ export class UI_Pattern3 implements IUIOverlay {
         tex.textSize(height * 0.02);
         tex.text('LIVE', width - margin - hudSpacing * 0.6, hudY);
 
-        // Bottom right timestamp
         const now = new Date();
         const pad = (n: number) => n.toString().padStart(2, '0');
         const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;

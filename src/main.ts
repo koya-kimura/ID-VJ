@@ -4,25 +4,20 @@ import p5 from 'p5';
 
 import { APCMiniMK2Manager } from './midi/APCMiniMK2Manager';
 import { BPMManager } from './rhythm/BPMManager';
-import { SceneManager } from './scenes/SceneManager';
-import { Scene1 } from './scenes/Scene1';
-import { Scene2 } from './scenes/Scene2';
-import { Scene3 } from './scenes/Scene3';
-import { Scene4 } from './scenes/Scene4';
-import { Scene5 } from './scenes/Scene5';
-import { Scene6 } from './scenes/Scene6';
-import { Scene7 } from './scenes/Scene7';
-import { Scene8 } from './scenes/Scene8';
-import type { IScene } from './scenes/IScene';
-import { UIManager } from './ui/UIManager';
-import type { IUIOverlay } from './ui/IUIOverlay';
-import { UI_None } from './ui/UI_None';
-import { UI_Pattern1 } from './ui/UI_Pattern1';
-import { UI_Pattern2 } from './ui/UI_Pattern2';
-import { UI_Pattern3 } from './ui/UI_Pattern3';
-import { UI_Pattern4 } from './ui/UI_Pattern4';
-import { UI_Pattern5 } from './ui/UI_Pattern5';
+import { SceneManager } from './core/SceneManager';
+import type { IScene } from './core/IScene';
+import { UIManager } from './core/UIManager';
+import type { IUIOverlay } from './core/IUIOverlay';
+import { instantiateScenes } from './config/sceneConfig';
+import { instantiateUIOverlays } from './config/uiConfig';
+import {
+  ACTIVE_POST_EFFECTS,
+  POST_EFFECT_UNIFORMS,
+  resolvePostEffectValue,
+} from './config/postEffectConfig';
 import { Easing } from './utils/easing';
+
+// ポストエフェクトの選択は `src/config/postEffectConfig.ts` を編集してください。
 
 // グローバルなマネージャーインスタンスの宣言
 let midiManager: APCMiniMK2Manager = new APCMiniMK2Manager();
@@ -48,28 +43,12 @@ const sketch = (p: p5) => {
     p.textFont(font);
 
     // 2. VJシーンの登録とSceneManagerの初期化
-    const allScenes: IScene[] = [
-  new Scene1(),
-      new Scene2(),
-      new Scene3(),
-      new Scene4(),
-      new Scene5(),
-      new Scene6(),
-      new Scene7(),
-      new Scene8(),
-    ];
+    const allScenes: IScene[] = instantiateScenes();
     sceneManager.setup(p, allScenes);
 
     // 3. UI Managerの初期化とUIパターンの登録
-    const allUIPatterns: IUIOverlay[] = [
-      new UI_None(),      // 0: UIなし (オーバーレイ非表示)
-      new UI_Pattern1(),  // 1: APC/BPMデバッグ情報
-      new UI_Pattern2(),  // 2: シーンタブ表示
-      new UI_Pattern3(),  // 3: カメラフレーム
-      new UI_Pattern4(),  // 4: 円形ポータルフレーム
-      new UI_Pattern5(),  // 5: データグリッドHUD
-    ];
-    uiManager.setup(p,allUIPatterns);
+    const allUIPatterns: IUIOverlay[] = instantiateUIOverlays();
+    uiManager.setup(p, allUIPatterns);
   }
 
   /**
@@ -101,14 +80,18 @@ const sketch = (p: p5) => {
     postShader.setUniform("u_beat", bpmManager.getBeat());
     postShader.setUniform("u_tex", sceneManager.getDrawTexture() || p.createGraphics(p.width, p.height));
     postShader.setUniform("u_uitex", uiManager.getUITexture() || p.createGraphics(p.width, p.height));
-    postShader.setUniform("u_invert", Easing.easeInOutSine(midiManager.faderValues[0]));
-    postShader.setUniform("u_mosaic", Easing.easeInOutSine(midiManager.faderValues[1]));
-    postShader.setUniform("u_noise", Easing.easeInOutSine(midiManager.faderValues[2]));
-    postShader.setUniform("u_tile", Easing.easeInOutSine(midiManager.faderValues[3]));
-    postShader.setUniform("u_cut", Easing.easeInOutSine(midiManager.faderValues[4]));
-    postShader.setUniform("u_monochrome", Easing.easeInOutSine(midiManager.faderValues[6]));
-    postShader.setUniform("u_color", Easing.easeInOutSine(midiManager.faderValues[7]));
-  postShader.setUniform("u_blackout", Easing.easeInOutSine(midiManager.faderValues[8]));
+
+    POST_EFFECT_UNIFORMS.forEach((uniform) => {
+      postShader.setUniform(uniform, 0);
+    });
+
+    ACTIVE_POST_EFFECTS.forEach((effect, index) => {
+      const rawValue = midiManager.faderValues[index] ?? 0;
+      const value = resolvePostEffectValue(effect, rawValue);
+      postShader.setUniform(effect.uniform, value);
+    });
+
+    postShader.setUniform("u_blackout", Easing.easeInOutSine(midiManager.faderValues[8] ?? 0));
     p.rect(0, 0, p.width, p.height);
   }
 

@@ -1,43 +1,46 @@
-// src/scenes/Scene6.ts
+// src/scenes/RadialPulseConduitsScene.ts
 
 import p5 from 'p5';
-import type { IScene } from "./IScene";
+import type { IScene } from '../core/IScene';
 import { APCMiniMK2Manager } from '../midi/APCMiniMK2Manager';
 import { Easing } from '../utils/easing';
 
 type EaseFn = (t: number) => number;
 
+type AccentMode = 'solid' | 'stutter' | 'burst' | 'skip-two' | 'mirror';
+type JitterMode = 'none' | 'beat' | 'noise' | 'spiral';
+
+type MotionInputs = {
+    ringCount: number;
+    baseSegments: number;
+    accentMode: AccentMode;
+    spinSpeed: number;
+    easeFn: EaseFn;
+    trailAlpha: number;
+    jitterMode: JitterMode;
+    strokePalette: { base: number; accent: number; spokes: boolean };
+};
+
 /**
- * Scene6: Radial Pulse Conduits
- * 深めのテクノのグルーヴに合わせ、イージングを用いた有機的な円形モーションを描く。
- * 8つのパラメータは、それぞれ意味のある選択肢から構成される。
+ * RadialPulseConduitsScene
+ * ------------------------
+ * 複数リングで構成された放射状のアークを描画し、拍に合わせて膨張・収縮するシーン。
  */
-export class Scene6 implements IScene {
-    public name: string = "Scene 6: Radial Pulse Conduits";
+export class RadialPulseConduitsScene implements IScene {
+    public name: string = 'Radial Pulse Conduits';
 
     private readonly ringCountOptions = [3, 5, 8, 12];
     private readonly segmentOptions = [8, 12, 18, 24];
-    private readonly accentModes = [
-    "solid",
-    "stutter",
-    "burst",
-    "skip-two",
-    "mirror",
-    ] as const;
+    private readonly accentModes: AccentMode[] = ['solid', 'stutter', 'burst', 'skip-two', 'mirror'];
     private readonly spinSpeedOptions = [0.15, 0.28, 0.45, 0.7];
     private readonly easeProfiles: EaseFn[] = [
-    Easing.easeInOutSine,
-    Easing.easeInOutCubic,
-    Easing.easeInOutCirc,
-    (t) => Easing.easeOutBack(t),
+        Easing.easeInOutSine,
+        Easing.easeInOutCubic,
+        Easing.easeInOutCirc,
+        (t) => Easing.easeOutBack(t),
     ];
     private readonly trailAlphaOptions = [16, 40, 80, 140];
-    private readonly jitterModes = [
-    "none",
-    "beat",
-    "noise",
-    "spiral",
-    ] as const;
+    private readonly jitterModes: JitterMode[] = ['none', 'beat', 'noise', 'spiral'];
     private readonly strokePalettes = [
         { base: 1.4, accent: 1.2, spokes: false },
         { base: 1.0, accent: 2.4, spokes: true },
@@ -45,7 +48,7 @@ export class Scene6 implements IScene {
         { base: 2.2, accent: 1.6, spokes: true },
     ];
 
-    private maxOptions: number[] = [
+    private readonly maxOptions: number[] = [
         this.ringCountOptions.length,
         this.segmentOptions.length,
         this.accentModes.length,
@@ -63,14 +66,22 @@ export class Scene6 implements IScene {
     public draw(p: p5, tex: p5.Graphics, _tex3d: p5.Graphics, apcManager: APCMiniMK2Manager, currentBeat: number): void {
         const selection = new Array(8).fill(0).map((_, i) => apcManager.getParamValue(i));
 
-        const ringCount = this.ringCountOptions[selection[0]];
-        const baseSegments = this.segmentOptions[selection[1]];
-        const accentMode = this.accentModes[selection[2]];
-        const spinSpeed = this.spinSpeedOptions[selection[3]];
-        const easeFn = this.easeProfiles[selection[4]];
-        const trailAlpha = this.trailAlphaOptions[selection[5]];
-        const jitterMode = this.jitterModes[selection[6]];
-        const strokePalette = this.strokePalettes[selection[7]];
+        const inputs: MotionInputs = {
+            ringCount: this.ringCountOptions[selection[0]],
+            baseSegments: this.segmentOptions[selection[1]],
+            accentMode: this.accentModes[selection[2]],
+            spinSpeed: this.spinSpeedOptions[selection[3]],
+            easeFn: this.easeProfiles[selection[4]],
+            trailAlpha: this.trailAlphaOptions[selection[5]],
+            jitterMode: this.jitterModes[selection[6]],
+            strokePalette: this.strokePalettes[selection[7]],
+        };
+
+        this.drawScene(p, tex, inputs, currentBeat);
+    }
+
+    private drawScene(p: p5, tex: p5.Graphics, inputs: MotionInputs, currentBeat: number): void {
+        const { ringCount, baseSegments, accentMode, spinSpeed, easeFn, trailAlpha, jitterMode, strokePalette } = inputs;
 
         tex.noStroke();
         tex.fill(0, trailAlpha);
@@ -84,11 +95,11 @@ export class Scene6 implements IScene {
         tex.strokeJoin(p.ROUND);
 
         const minDim = Math.min(tex.width, tex.height);
-    const baseRadius = minDim * 0.42;
+        const baseRadius = minDim * 0.42;
 
-    const scatterPhase = ((currentBeat / 12) % 1 + 1) % 1;
-    const scatterWeight = Easing.easeInOutCubic(scatterPhase);
-    const scatterFactor = p.lerp(0.55, 1.6, scatterWeight);
+        const scatterPhase = ((currentBeat / 12) % 1 + 1) % 1;
+        const scatterWeight = Easing.easeInOutCubic(scatterPhase);
+        const scatterFactor = p.lerp(0.55, 1.6, scatterWeight);
 
         const beatPhase = (currentBeat % 1 + 1) % 1;
         const easedBeat = easeFn(beatPhase);
@@ -165,7 +176,7 @@ export class Scene6 implements IScene {
         spanMultiplier: number,
         easedBeat: number,
         ringRatio: number,
-        accentMode: typeof this.accentModes[number],
+        accentMode: AccentMode,
         hasSpokes: boolean,
         beatPhase: number,
     ): void {
@@ -196,64 +207,71 @@ export class Scene6 implements IScene {
         tex.noStroke();
     }
 
-    private segmentOffset(mode: typeof this.accentModes[number], ring: number): number {
+    private segmentOffset(mode: AccentMode, ring: number): number {
         switch (mode) {
-            case "burst":
-                return (ring % 2 === 0) ? 6 : 2;
-            case "stutter":
+            case 'burst':
+                return ring % 2 === 0 ? 6 : 2;
+            case 'stutter':
                 return (ring % 3) - 1;
-            case "mirror":
+            case 'mirror':
                 return ring < 2 ? 4 : 0;
+            case 'skip-two':
+                return 0;
+            case 'solid':
             default:
                 return 0;
         }
     }
 
-    private segmentSpanMultiplier(mode: typeof this.accentModes[number], seg: number, easedBeat: number): number {
+    private segmentSpanMultiplier(mode: AccentMode, seg: number, easedBeat: number): number {
         switch (mode) {
-            case "burst":
+            case 'burst':
                 return 1.2 + 0.6 * easedBeat;
-            case "stutter":
+            case 'stutter':
                 return seg % 2 === 0 ? 0.45 : 0.9 + 0.4 * easedBeat;
-            case "skip-two":
+            case 'skip-two':
                 return seg % 3 === 0 ? 1.3 : 0.6;
-            case "mirror":
+            case 'mirror':
                 return seg % 2 === 0 ? 1.0 + 0.5 * easedBeat : 0.7;
+            case 'solid':
             default:
                 return 1.0;
         }
     }
 
-    private shouldSkipSegment(mode: typeof this.accentModes[number], seg: number, ring: number, beatPhase: number): boolean {
+    private shouldSkipSegment(mode: AccentMode, seg: number, ring: number, beatPhase: number): boolean {
         switch (mode) {
-            case "skip-two":
+            case 'skip-two':
                 return (seg + ring) % 3 === 0;
-            case "stutter":
+            case 'stutter':
                 return (seg + Math.floor(beatPhase * 8)) % 4 === 0;
             default:
                 return false;
         }
     }
 
-    private jitterOffset(mode: typeof this.jitterModes[number], ring: number, beat: number): number {
+    private jitterOffset(mode: JitterMode, ring: number, beat: number): number {
         switch (mode) {
-            case "beat":
+            case 'beat':
                 return 0.15 * Math.sin((beat + ring * 0.25) * Math.PI);
-            case "noise":
+            case 'noise':
                 return 0.08 * Math.sin((ring + 1) * 1.3 + beat * 0.7);
-            case "spiral":
+            case 'spiral':
                 return 0.14 * Math.sin(beat * 0.6 + ring * 0.8);
+            case 'none':
             default:
                 return 0;
         }
     }
 
-    private jitterAngle(mode: typeof this.jitterModes[number], ring: number, beat: number): number {
+    private jitterAngle(mode: JitterMode, ring: number, beat: number): number {
         switch (mode) {
-            case "noise":
+            case 'noise':
                 return 0.35 * Math.sin(beat * 0.9 + ring * 0.6);
-            case "spiral":
+            case 'spiral':
                 return 0.5 * Math.sin(beat * 0.4 + ring * 0.5);
+            case 'beat':
+            case 'none':
             default:
                 return 0;
         }

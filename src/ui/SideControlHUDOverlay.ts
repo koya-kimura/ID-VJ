@@ -1,20 +1,20 @@
-// src/ui/UI_Pattern1.ts (UI_Pattern2からロジックを移動し、インデックス1に対応)
+// src/ui/SideControlHUDOverlay.ts
 
 import p5 from 'p5';
-import type { IUIOverlay } from './IUIOverlay';
+import type { IUIOverlay } from '../core/IUIOverlay';
 import { APCMiniMK2Manager } from '../midi/APCMiniMK2Manager';
 import { BPMManager } from '../rhythm/BPMManager';
 import { Easing } from '../utils/easing';
 
 /**
- * UIパターン1: 画面中央を正方形にクロップし、左右の黒い領域にAPCの状態を描画するオーバーレイ。
+ * SideControlHUDOverlay
+ * ---------------------
+ * 画面左右にブラックバーを設け、左にグリッド状態、右にフェーダー状態を可視化するHUD。
  */
-export class UI_Pattern1 implements IUIOverlay {
-    public name: string = "Pattern 1: Side Crop UI";
+export class SideControlHUDOverlay implements IUIOverlay {
+    public name: string = 'Side Control HUD';
 
-    // 💡 修正: drawのシグネチャを変更。texをメインの描画ターゲットとする
-    public draw(p: p5, tex: p5.Graphics, midiManager: APCMiniMK2Manager, bpmManager: BPMManager, currentBeat: number): void {
-
+    public draw(p: p5, tex: p5.Graphics, midiManager: APCMiniMK2Manager, _bpmManager: BPMManager, _currentBeat: number): void {
         tex.clear();
         tex.push();
         const centralSquareSize = p.height;
@@ -24,7 +24,7 @@ export class UI_Pattern1 implements IUIOverlay {
         tex.rect(0, 0, rectSpaceWidth, p.height);
         tex.rect(tex.width - rectSpaceWidth, 0, rectSpaceWidth, p.height);
 
-        // pad
+        // パッド状態の可視化
         const PAD_ROWS = 8;
         const PAD_COLS = 8;
         const padSize = rectSpaceWidth * 0.8 / PAD_ROWS;
@@ -33,8 +33,8 @@ export class UI_Pattern1 implements IUIOverlay {
         const currentScene = midiManager.gridRadioState[midiManager.currentSceneIndex];
 
         tex.push();
-        tex.translate(gap, tex.height-gap-padSize*PAD_ROWS);
-        tex.rectMode(p.CORNER); // p.CORNERはp5定数なのでpから取得
+        tex.translate(gap, tex.height - gap - padSize * PAD_ROWS);
+        tex.rectMode(p.CORNER);
 
         for (let col = 0; col < PAD_COLS; col++) {
             for (let row = 0; row < PAD_ROWS; row++) {
@@ -44,7 +44,6 @@ export class UI_Pattern1 implements IUIOverlay {
                 const xPos = col * padSize + padSize * 0.5;
                 const yPos = row * padSize + padSize * 0.5;
 
-                // 描画コマンドを tex に切り替え
                 tex.stroke(255);
                 tex.strokeWeight(1);
                 tex.noFill();
@@ -74,7 +73,7 @@ export class UI_Pattern1 implements IUIOverlay {
         }
         tex.pop();
 
-        // fader
+        // フェーダー状態の可視化
         const FADER_COUNT = 9;
 
         tex.push();
@@ -87,20 +86,16 @@ export class UI_Pattern1 implements IUIOverlay {
             const knobY = drawAreaLength * (1 - value) * 0.8;
             const knobSize = drawAreaLength * 0.5 / FADER_COUNT;
 
-            // 1. フェーダーセンターラインの描画
             tex.stroke(255);
             tex.strokeWeight(2);
             tex.line(xPos, 0, xPos, drawAreaLength * 0.8);
             tex.line(xPos - knobSize * 0.5, 0, xPos + knobSize * 0.5, 0);
-
-            // 2. フェーダーノブ (四角形) の描画
 
             tex.noStroke();
             tex.fill(255);
             tex.rectMode(p.CENTER);
             tex.rect(xPos, knobY, knobSize * 1.5, knobSize);
 
-            // 3. トグルボタンの描画
             const buttonY = drawAreaLength * 0.9;
 
             tex.stroke(255);
@@ -117,26 +112,25 @@ export class UI_Pattern1 implements IUIOverlay {
         }
         tex.pop();
 
-        // text
-        tex.textFont("Helvetica");
+        // タイポグラフィ
+        tex.textFont('Helvetica');
         tex.fill(255);
         tex.textAlign(p.CENTER, p.CENTER);
         tex.push();
         tex.textSize(p.min(tex.width, tex.height) * 0.5);
         tex.translate(rectSpaceWidth, tex.height * 0.25);
-        tex.text("ID", 0, 0);
+        tex.text('ID', 0, 0);
         tex.pop();
 
         tex.push();
         tex.textSize(p.min(tex.width, tex.height) * 0.2);
         tex.translate(rectSpaceWidth + tex.width * 0.5, tex.height * 0.25);
-        tex.rotate(p.HALF_PI)
-        tex.text("ID", 0, 0);
-        tex.text("ID", 0, tex.height * 0.2);
-        tex.text("ID", 0, -tex.height * 0.2);
+        tex.rotate(p.HALF_PI);
+        tex.text('ID', 0, 0);
+        tex.text('ID', 0, tex.height * 0.2);
+        tex.text('ID', 0, -tex.height * 0.2);
         tex.pop();
 
-        // final
         tex.pop();
     }
 }

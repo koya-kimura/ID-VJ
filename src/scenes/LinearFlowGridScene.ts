@@ -1,11 +1,19 @@
-// src/scenes/Scene2.ts
+// src/scenes/LinearFlowGridScene.ts
 
 import p5 from 'p5';
-import type { IScene } from "./IScene";
+import type { IScene } from '../core/IScene';
 import { APCMiniMK2Manager } from '../midi/APCMiniMK2Manager';
 
-export class Scene2 implements IScene {
-    public name: string = "Scene 2: Line Flow - Rotation";
+type AngleMode = 'vert' | 'horz' | 'vertmix' | 'horzmix' | 'vert&horz' | 'diag' | 'rand';
+type ScatterMode = 'none' | 'mirror' | 'dual';
+
+/**
+ * LinearFlowGridScene
+ * -------------------
+ * スキャンライン状のラインを複数レイヤーで流し、鏡像や散乱パターンで厚みを出すシーン。
+ */
+export class LinearFlowGridScene implements IScene {
+    public name: string = 'Linear Flow Grid';
 
     private readonly lineDensityOptions = [10, 20, 40, 80];
     private readonly gridCopyOptions = [1, 2, 4, 8];
@@ -13,8 +21,8 @@ export class Scene2 implements IScene {
     private readonly canvasScaleOptions = [0.5, 1, 2, 4];
     private readonly lengthOptions = [0.2, 0.45, 0.7, 1.0];
     private readonly speedOptions = [2, 6, 12, 20];
-    private readonly angleModes = ["vert", "horz", "vertmix", "horzmix", "vert&horz", "diag", "rand"] as const;
-    private readonly scatterModes = ["none", "mirror", "dual"] as const;
+    private readonly angleModes: AngleMode[] = ['vert', 'horz', 'vertmix', 'horzmix', 'vert&horz', 'diag', 'rand'];
+    private readonly scatterModes: ScatterMode[] = ['none', 'mirror', 'dual'];
 
     private readonly maxOptions: number[] = [
         this.lineDensityOptions.length,
@@ -48,7 +56,7 @@ export class Scene2 implements IScene {
         tex.scale(canvasScale);
 
         const canvasSize = Math.max(tex.width, tex.height) * Math.SQRT2;
-        const scatterFlip = scatterMode !== "none";
+        const scatterFlip = scatterMode !== 'none';
 
         for (let i = 0; i < lineCount; i++) {
             const h = canvasSize / lineCount;
@@ -84,32 +92,32 @@ export class Scene2 implements IScene {
         tex.pop();
     }
 
-    private resolveAngle(p: p5, mode: typeof this.angleModes[number], index: number): number {
+    private resolveAngle(p: p5, mode: AngleMode, index: number): number {
         switch (mode) {
-            case "vert":
+            case 'vert':
                 return 0;
-            case "horz":
+            case 'horz':
                 return p.HALF_PI;
-            case "vertmix":
+            case 'vertmix':
                 return p.noise(index, 3710) < 0.5 ? 0 : p.PI;
-            case "horzmix":
+            case 'horzmix':
                 return p.noise(index, 4897) < 0.5 ? p.HALF_PI : -p.HALF_PI;
-            case "vert&horz":
+            case 'vert&horz':
                 return p.TWO_PI * p.floor(p.noise(index, 1234) * 16) / 4;
-            case "diag":
+            case 'diag':
                 return p.PI * 0.25;
-            case "rand":
+            case 'rand':
             default:
                 return p.TWO_PI * p.noise(index, 41709) * 10;
         }
     }
 
-    private modulateY(base: number, canvasSize: number, copyIndex: number, mode: typeof this.scatterModes[number], lineCount: number, lineIndex: number): number {
-        if (mode === "none") {
+    private modulateY(base: number, canvasSize: number, copyIndex: number, mode: ScatterMode, lineCount: number, lineIndex: number): number {
+        if (mode === 'none') {
             return base;
         }
         const mirrored = copyIndex % 2 === 0 ? base : -base;
-        if (mode === "dual") {
+        if (mode === 'dual') {
             const offset = ((lineIndex % 4) - 1.5) * (canvasSize / lineCount) * 0.12;
             return mirrored + offset;
         }

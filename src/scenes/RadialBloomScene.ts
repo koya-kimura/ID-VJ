@@ -1,24 +1,31 @@
+// src/scenes/RadialBloomScene.ts
+
 import p5 from 'p5';
-import type { IScene } from './IScene';
+import type { IScene } from '../core/IScene';
 import { APCMiniMK2Manager } from '../midi/APCMiniMK2Manager';
 import { Easing } from '../utils/easing';
 
-type ReturnMode = "bounce" | "oneway" | "linger" | "reverse";
-type DestinationMode = "line" | "ring" | "random" | "dual";
-type MotionProfile = "smooth" | "wave" | "zigzag" | "stutter";
-type PhaseMode = "uniform" | "spread" | "cascade" | "random";
+type ReturnMode = 'bounce' | 'oneway' | 'linger' | 'reverse';
+type DestinationMode = 'line' | 'ring' | 'random' | 'dual';
+type MotionProfile = 'smooth' | 'wave' | 'zigzag' | 'stutter';
+type PhaseMode = 'uniform' | 'spread' | 'cascade' | 'random';
 
-export class Scene4 implements IScene {
-    public name: string = 'Scene 4: Radial Bloom';
+/**
+ * RadialBloomScene
+ * ----------------
+ * 複数の円が軌跡を描きながら外側へ膨らむシーン。配置やモーションをパラメータで切り替える。
+ */
+export class RadialBloomScene implements IScene {
+    public name: string = 'Radial Bloom';
 
     private readonly circleCountOptions = [5, 7, 9, 12];
     private readonly circleRadiusOptions = [0.09, 0.11, 0.135, 0.165];
     private readonly travelRadiusOptions = [0.22, 0.36, 0.5, 0.65];
     private readonly loopCountOptions = [1, 2, 4, 6];
-    private readonly returnModes: ReturnMode[] = ["bounce", "oneway", "linger", "reverse"];
-    private readonly destinationModes: DestinationMode[] = ["line", "ring", "random", "dual"];
-    private readonly motionProfiles: MotionProfile[] = ["smooth", "wave", "zigzag", "stutter"];
-    private readonly phaseModes: PhaseMode[] = ["uniform", "spread", "cascade", "random"];
+    private readonly returnModes: ReturnMode[] = ['bounce', 'oneway', 'linger', 'reverse'];
+    private readonly destinationModes: DestinationMode[] = ['line', 'ring', 'random', 'dual'];
+    private readonly motionProfiles: MotionProfile[] = ['smooth', 'wave', 'zigzag', 'stutter'];
+    private readonly phaseModes: PhaseMode[] = ['uniform', 'spread', 'cascade', 'random'];
 
     private readonly maxOptions: number[] = [
         this.circleCountOptions.length,
@@ -52,8 +59,8 @@ export class Scene4 implements IScene {
         tex.translate(tex.width / 2, tex.height / 2);
         tex.noStroke();
 
-    const minDim = Math.min(tex.width, tex.height);
-    const circleRadius = minDim * circleRadiusScale * this.countSizeAttenuation(circleCount);
+        const minDim = Math.min(tex.width, tex.height);
+        const circleRadius = minDim * circleRadiusScale * this.countSizeAttenuation(circleCount);
         const travelRadius = minDim * travelRadiusScale;
 
         const beatPhase = this.mod1(currentBeat);
@@ -93,11 +100,11 @@ export class Scene4 implements IScene {
 
     private destinationPoint(mode: DestinationMode, radius: number, angle: number, ratio: number, index: number): { x: number; y: number } {
         switch (mode) {
-            case "line": {
+            case 'line': {
                 const offset = (ratio - 0.5) * 2;
                 return { x: offset * radius, y: 0 };
             }
-            case "random": {
+            case 'random': {
                 const seed = Math.sin(index * 127.31) * 43758.5453;
                 const randAngle = (seed - Math.floor(seed)) * Math.PI * 2;
                 const randRadius = radius * (0.65 + 0.35 * ((Math.cos(index * 53.17) + 1) * 0.5));
@@ -106,14 +113,14 @@ export class Scene4 implements IScene {
                     y: Math.sin(randAngle) * randRadius,
                 };
             }
-            case "dual": {
+            case 'dual': {
                 const ring = index % 2 === 0 ? 0.6 : 1;
                 return {
                     x: Math.cos(angle) * radius * ring,
                     y: Math.sin(angle) * radius * ring,
                 };
             }
-            case "ring":
+            case 'ring':
             default:
                 return {
                     x: Math.cos(angle) * radius,
@@ -124,21 +131,21 @@ export class Scene4 implements IScene {
 
     private travelProgress(mode: ReturnMode, phase: number): number {
         switch (mode) {
-            case "bounce": {
+            case 'bounce': {
                 const folded = phase < 0.5 ? phase * 2 : (1 - phase) * 2;
                 return Easing.easeInOutCubic(folded);
             }
-            case "linger": {
+            case 'linger': {
                 if (phase < 0.4) {
                     return Easing.easeOutCubic(phase / 0.4);
                 }
                 return 1 - 0.15 * Easing.easeInCubic((phase - 0.4) / 0.6);
             }
-            case "reverse": {
+            case 'reverse': {
                 const direction = phase < 0.5 ? phase * 2 : (phase - 0.5) * 2;
                 return Easing.easeInOutCubic((phase < 0.5 ? direction : 1 - direction));
             }
-            case "oneway":
+            case 'oneway':
             default:
                 return Easing.easeOutCubic(phase);
         }
@@ -146,23 +153,23 @@ export class Scene4 implements IScene {
 
     private motionOffset(profile: MotionProfile, phase: number, index: number, scale: number): { x: number; y: number } {
         switch (profile) {
-            case "wave": {
+            case 'wave': {
                 const amp = scale * 0.025;
                 const wave = Math.sin((phase + index * 0.1) * Math.PI * 2);
                 return { x: wave * amp, y: Math.cos((phase * 0.5 + index * 0.05) * Math.PI * 2) * amp };
             }
-            case "zigzag": {
+            case 'zigzag': {
                 const ampX = scale * 0.02;
                 const ampY = scale * 0.015;
                 const zig = ((phase * 4 + index * 0.2) % 2) - 1;
                 return { x: Math.sign(zig) * ampX, y: zig * ampY };
             }
-            case "stutter": {
+            case 'stutter': {
                 const step = Math.floor((phase * 4) % 4) / 3;
                 const jitter = Math.sin(index * 17.3) * scale * 0.012;
                 return { x: jitter * step, y: -jitter * (1 - step) };
             }
-            case "smooth":
+            case 'smooth':
             default:
                 return { x: 0, y: 0 };
         }
@@ -170,13 +177,13 @@ export class Scene4 implements IScene {
 
     private computePhaseOffset(mode: PhaseMode, index: number, count: number): number {
         switch (mode) {
-            case "spread":
+            case 'spread':
                 return (index / Math.max(1, count)) * 0.5;
-            case "cascade":
+            case 'cascade':
                 return (index / Math.max(1, count - 1)) * 0.25;
-            case "random":
+            case 'random':
                 return ((Math.sin(index * 91.7) + 1) * 0.5) * 0.5;
-            case "uniform":
+            case 'uniform':
             default:
                 return 0;
         }

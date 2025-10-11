@@ -1,21 +1,31 @@
-// src/scenes/Scene3.ts
+// src/scenes/GlyphCascadeScene.ts
 
 import p5 from 'p5';
-import type { IScene } from "./IScene";
+import type { IScene } from '../core/IScene';
 import { APCMiniMK2Manager } from '../midi/APCMiniMK2Manager';
 import { Easing } from '../utils/easing';
 
-export class Scene3 implements IScene {
-    public name: string = "Scene 3: Glyph Cascade";
+type TextStyle = 'fill' | 'stroke' | 'random' | 'alternate';
+type MotionMode = 'vertsin' | 'horzswitch' | 'slant' | 'pulse';
+type DistortionMode = 'none' | 'mirror' | 'strobe' | 'tilt';
+type DecorationMode = 'none' | 'underline' | 'shadow';
+
+/**
+ * GlyphCascadeScene
+ * -----------------
+ * "IDVJ" の文字を格子状に配置し、様々なモーションと装飾でカスケードさせるシーン。
+ */
+export class GlyphCascadeScene implements IScene {
+    public name: string = 'Glyph Cascade';
 
     private readonly columnOptions = [12, 16, 20, 24];
     private readonly sizeOptions = [0.45, 0.62, 0.85, 1.1];
     private readonly amplitudeOptions = [0.35, 0.55, 0.85, 1.2];
-    private readonly textStyleOptions = ["fill", "stroke", "random", "alternate"] as const;
-    private readonly motionModeOptions = ["vertsin", "horzswitch", "slant", "pulse"] as const;
+    private readonly textStyleOptions: readonly TextStyle[] = ['fill', 'stroke', 'random', 'alternate'];
+    private readonly motionModeOptions: readonly MotionMode[] = ['vertsin', 'horzswitch', 'slant', 'pulse'];
     private readonly angleOffsetOptions = [0, Math.PI * 0.1, Math.PI * 0.25, Math.PI * 0.5];
-    private readonly distortionOptions = ["none", "mirror", "strobe", "tilt"] as const;
-    private readonly decorationOptions = ["none", "underline", "shadow"] as const;
+    private readonly distortionOptions: readonly DistortionMode[] = ['none', 'mirror', 'strobe', 'tilt'];
+    private readonly decorationOptions: readonly DecorationMode[] = ['none', 'underline', 'shadow'];
 
     private readonly maxOptions: number[] = [
         this.columnOptions.length,
@@ -25,7 +35,7 @@ export class Scene3 implements IScene {
         this.motionModeOptions.length,
         this.angleOffsetOptions.length,
         this.distortionOptions.length,
-        this.decorationOptions.length
+        this.decorationOptions.length,
     ];
 
     public setup(apcManager: APCMiniMK2Manager, sceneIndex: number): void {
@@ -63,7 +73,7 @@ export class Scene3 implements IScene {
                 const gy = p.map(row, 0, rows - 1, -tex.height / 2 + cellH / 2, tex.height / 2 - cellH / 2);
                 const baseScale = Math.min(cellW, cellH) * textScale;
                 const dir = col % 2 === 0 ? 1 : -1;
-                const glyph = "IDVJ"[(row * cols + col) % 4];
+                const glyph = 'IDVJ'[(row * cols + col) % 4];
 
                 const motion = this.resolveMotion(p, motionMode, {
                     gx,
@@ -76,7 +86,7 @@ export class Scene3 implements IScene {
                     vertEase,
                     row,
                     col,
-                    currentBeat
+                    currentBeat,
                 });
 
                 const renderState = this.resolveDistortion(distortionMode, {
@@ -84,7 +94,7 @@ export class Scene3 implements IScene {
                     rotation: angleOffset,
                     dir,
                     beatEase,
-                    beatPhase
+                    beatPhase,
                 });
 
                 tex.push();
@@ -102,7 +112,7 @@ export class Scene3 implements IScene {
         tex.pop();
     }
 
-    private resolveMotion(p: p5, mode: typeof this.motionModeOptions[number], input: {
+    private resolveMotion(p: p5, mode: MotionMode, input: {
         gx: number;
         gy: number;
         cellW: number;
@@ -123,23 +133,23 @@ export class Scene3 implements IScene {
         let scale = 1;
 
         switch (mode) {
-            case "vertsin":
+            case 'vertsin':
                 x += Math.sin(vertEase * Math.PI * 2) * cellW * travel - cellW * travel * 0.5 + (row % 2 === 0 ? 0 : cellW * 0.5);
                 y += ((currentBeat + row * 0.125) % 2) * cellH * travel;
                 angle = p.map(Math.sin(vertEase * Math.PI * 2), -1, 1, -Math.PI * 0.3, Math.PI * 0.3);
                 break;
-            case "horzswitch":
+            case 'horzswitch':
                 x += p.map(beatEase, 0, col % 2 === 0 ? 1 : -1, cellW * travel, -cellW * travel) + (row % 2 === 0 ? 0 : cellW * 0.5);
                 angle = p.map(beatEase, 0, 1, -0.5, 0.5) * Math.PI * travel;
                 scale = p.map(beatEase, 0, 1, 0.6, 1);
                 break;
-            case "slant":
+            case 'slant':
                 x += (beatPhase * 2 - 1) * cellW * travel;
                 y += (beatPhase * 2 - 1) * cellH * travel * 0.65;
                 angle = Math.PI * 0.15 * Math.sin(currentBeat * Math.PI * 0.5 + col * 0.2);
                 scale = 0.85 + 0.2 * Math.sin(currentBeat * Math.PI + row * 0.3);
                 break;
-            case "pulse":
+            case 'pulse':
             default:
                 const pulse = 0.5 + 0.5 * Math.sin(Math.PI * 2 * (currentBeat + row * 0.1));
                 y += (pulse - 0.5) * cellH * travel * 1.6;
@@ -151,7 +161,7 @@ export class Scene3 implements IScene {
         return { x, y, angle, scale };
     }
 
-    private resolveDistortion(mode: typeof this.distortionOptions[number], input: {
+    private resolveDistortion(mode: DistortionMode, input: {
         scale: number;
         rotation: number;
         dir: number;
@@ -165,19 +175,19 @@ export class Scene3 implements IScene {
         let direction = dir;
 
         switch (mode) {
-            case "mirror":
+            case 'mirror':
                 direction *= beatPhase > 0.5 ? -1 : 1;
                 rot += (beatPhase > 0.5 ? 1 : -1) * Math.PI * 0.05;
                 break;
-            case "strobe":
+            case 'strobe':
                 scaleMod = beatEase > 0.7 ? 1.2 : 0.85;
                 scaleModY = beatEase > 0.7 ? 0.85 : 1.2;
                 break;
-            case "tilt":
+            case 'tilt':
                 rot += (beatPhase - 0.5) * Math.PI * 0.2;
                 scaleMod = 0.9 + Math.abs(beatPhase - 0.5) * 0.4;
                 break;
-            case "none":
+            case 'none':
             default:
                 break;
         }
@@ -185,18 +195,18 @@ export class Scene3 implements IScene {
         return { rotation: rot, scaleMod, scaleModY, dir: direction };
     }
 
-    private applyTextStyle(tex: p5.Graphics, p: p5, style: typeof this.textStyleOptions[number], row: number, col: number): void {
+    private applyTextStyle(tex: p5.Graphics, p: p5, style: TextStyle, row: number, col: number): void {
         switch (style) {
-            case "fill":
+            case 'fill':
                 tex.fill(255);
                 tex.noStroke();
                 break;
-            case "stroke":
+            case 'stroke':
                 tex.noFill();
                 tex.stroke(255);
                 tex.strokeWeight(2);
                 break;
-            case "alternate":
+            case 'alternate':
                 if ((row + col) % 2 === 0) {
                     tex.fill(255);
                     tex.noStroke();
@@ -206,13 +216,12 @@ export class Scene3 implements IScene {
                     tex.strokeWeight(2);
                 }
                 break;
-            case "random":
+            case 'random':
             default:
                 if (p.noise(col * 471091, row * 89123) > 0.5) {
                     tex.fill(255);
                     tex.noStroke();
-                }
-                else {
+                } else {
                     tex.noFill();
                     tex.stroke(255);
                     tex.strokeWeight(2);
@@ -221,9 +230,9 @@ export class Scene3 implements IScene {
         }
     }
 
-    private drawDecoration(tex: p5.Graphics, mode: typeof this.decorationOptions[number], size: number, glyph: string): void {
+    private drawDecoration(tex: p5.Graphics, mode: DecorationMode, size: number, glyph: string): void {
         switch (mode) {
-            case "underline":
+            case 'underline':
                 tex.push();
                 tex.noFill();
                 tex.stroke(255);
@@ -231,7 +240,7 @@ export class Scene3 implements IScene {
                 tex.line(-size * 0.4, size * 0.55, size * 0.4, size * 0.55);
                 tex.pop();
                 break;
-            case "shadow":
+            case 'shadow':
                 tex.push();
                 tex.fill(40);
                 tex.noStroke();
@@ -239,7 +248,7 @@ export class Scene3 implements IScene {
                 tex.text(glyph, size * 0.08, size * 0.08);
                 tex.pop();
                 break;
-            case "none":
+            case 'none':
             default:
                 break;
         }

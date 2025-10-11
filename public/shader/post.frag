@@ -14,6 +14,8 @@ uniform float u_monochrome;
 uniform float u_color;
 uniform float u_beat;
 uniform float u_blackout;
+uniform float u_vignette;
+uniform float u_chromatic;
 
 float PI = 3.14159265358979;
 
@@ -71,7 +73,29 @@ void main(void) {
         uv = fract(uv * n);
     }
 
-    vec4 drawcol = texture2D(u_tex, uv);
+    float cutStrength = clamp(u_cut, 0.0, 1.0);
+    vec2 sampleUV = uv;
+    if(u_wave > 0.0){
+        float waveStrength = clamp(u_wave, 0.0, 1.0);
+        float freq = mix(2.0, 14.0, waveStrength);
+        sampleUV.y += sin((uv.x + u_time * 0.35) * freq) * 0.035 * waveStrength;
+        sampleUV.x += sin((uv.y + u_time * 0.21) * freq * 0.6) * 0.025 * waveStrength;
+    }
+    if(cutStrength > 0.0){
+        float bandIndex = floor(uv.y * mix(6.0, 40.0, cutStrength));
+        float glitchOffset = fract(sin(bandIndex * 91.7 + u_time * 2.1) * 43758.5453);
+        sampleUV.x += (glitchOffset - 0.5) * 0.05 * cutStrength;
+        sampleUV.y += sin((uv.x + glitchOffset) * 20.0 + u_time * 1.5) * 0.01 * cutStrength;
+    }
+
+    vec4 drawcol = texture2D(u_tex, sampleUV);
+
+    if(u_mirror > 0.0){
+        float mirrorStrength = clamp(u_mirror, 0.0, 1.0);
+        vec2 mirroredUV = vec2(1.0 - sampleUV.x, sampleUV.y);
+        vec4 mirrorCol = texture2D(u_tex, mirroredUV);
+        drawcol.rgb = mix(drawcol.rgb, mirrorCol.rgb, mirrorStrength);
+    }
 
     // モノクロの向きを反転: フェーダー低 = モノクロ、フェーダー高 = カラー
     float monoW = clamp(1.0 - u_monochrome, 0.0, 1.0);
@@ -87,7 +111,50 @@ void main(void) {
         drawcol.rgb = drawcol.r > .7 ? colorful : drawcol.rgb;
     }
 
-    if(u_invert == 1.0){
+    if(u_posterize > 0.0){
+        float levels = floor(mix(32.0, 4.0, clamp(u_posterize, 0.0, 1.0)) + 0.5);
+        drawcol.rgb = floor(drawcol.rgb * levels) / max(levels, 1.0);
+    }
+
+    if(u_vignette > 0.0){
+        vec2 centered = vTexCoord - vec2(0.5);
+        float dist = length(centered);
+        float mask = smoothstep(0.8, mix(0.35, 0.55, 1.0 - clamp(u_vignette, 0.0, 1.0)), dist);
+        drawcol.rgb *= mix(1.0, 1.0 - mask, clamp(u_vignette, 0.0, 1.0));
+    }
+
+    if(u_chromatic > 0.0){
+        float strength = clamp(u_chromatic, 0.0, 1.0);
+        vec2 chromaOffset = (vTexCoord - vec2(0.5)) * (0.05 * strength);
+        vec3 shifted;
+        shifted.r = texture2D(u_tex, sampleUV + chromaOffset).r;
+        shifted.g = texture2D(u_tex, sampleUV).g;
+        shifted.b = texture2D(u_tex, sampleUV - chromaOffset).b;
+        drawcol.rgb = mix(drawcol.rgb, shifted, strength);
+    }
+
+    if(u_glow > 0.0){
+        float glowStrength = clamp(u_glow, 0.0, 1.0);
+        vec2 texel = vec2(1.0 / 960.0, 1.0 / 540.0);
+        vec3 glowAccum = vec3(0.0);
+        for(int x = -1; x <= 1; x++){
+            for(int y = -1; y <= 1; y++){
+                vec2 offset = vec2(float(x), float(y)) * texel * mix(1.0, 4.0, glowStrength);
+                glowAccum += texture2D(u_tex, sampleUV + offset).rgb;
+            }
+        }
+        glowAccum /= 9.0;
+        drawcol.rgb = mix(drawcol.rgb, glowAccum, glowStrength * 0.6);
+    }
+
+    if(u_scanline > 0.0){
+        float scanFreq = mix(140.0, 600.0, clamp(u_scanline, 0.0, 1.0));
+        float scan = sin((vTexCoord.y + u_time * 0.35) * scanFreq) * 0.5 + 0.5;
+        float scanMix = mix(1.0, 0.6, scan * clamp(u_scanline, 0.0, 1.0));
+        drawcol.rgb *= scanMix;
+    }
+
+    if(u_invert > 0.5){
         drawcol.rgb = vec3(1.0) - drawcol.rgb;
     }
 
